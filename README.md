@@ -17,7 +17,7 @@ Symbolleiste, aktuelle Zeile, Cursor, Zeilenumbruch, Faltungsstil, senkrechte Ka
 neue Dokumente, Einrückung, Hervorhebung, Autovervollständigung, Sitzung …), der Rest steht ausgegraut. Nur Fensterrahmen und Menüleiste oben sind vom Mac. Für Apple
 Silicon und Intel, ab macOS 13.
 
-![Griffel mit einer Python-Datei, links die Dokumentenliste, rechts Funktionsliste und Miniaturansicht](docs/bilder/griffel.png)
+![Griffel mit einer Python-Datei, links die Dokumentenliste, rechts die Funktionsliste mit Klassen und Funktionen](docs/bilder/griffel.png)
 
 ## Was Griffel kann
 
@@ -35,6 +35,8 @@ wie dort nach Anfangsbuchstaben geordnet. Farbschema «Automatisch» folgt hell 
 Faltung, leuchtende Klammerpaare, Smart Highlighting (ein ausgewähltes Wort leuchtet überall),
 sichtbare Leerzeichen, Tabs und Zeilenenden, Einrückungshilfen, Zeilenumbruch, geteilte Ansicht.
 Benutzerdefinierte Sprachen (UDL) aus Notepad++ lassen sich importieren.
+
+![Griffel dunkel mit dem Farbschema DarkModeDefault, eine TypeScript-Datei, rechts die Miniaturansicht](docs/bilder/griffel-dunkel.png)
 
 **Suchen.** Der Dialog «Suchen und ersetzen» von Notepad++ mit den Reitern Suchen, Ersetzen, In
 Dateien suchen und Hervorheben, den drei Modi (Normal, Erweitert mit `\n`, `\t`, `\x41` …,
@@ -60,6 +62,8 @@ XML, Check XML syntax now), **MIME Tools** (Base64 und URL kodieren und dekodier
 (ASCII ↔ HEX). Alles wirkt auf die Auswahl oder ohne Auswahl auf das ganze Dokument, ein Fehler springt
 an seine Stelle, und ⌘Z nimmt es in einem Schritt zurück.
 
+![JSON Viewer: links die JSON-Datei, rechts ihr Baum mit Schlüsseln und Werten](docs/bilder/json-viewer.png)
+
 **Seitenleisten und Hilfen.** Funktionsliste (für 44 Sprachen), Dokumentenliste, Miniaturansicht und
 Ordner als Arbeitsbereich. Vorschläge beim Tippen aus dem Text und den Wortlisten von Notepad++
 (34 Sprachen) samt Aufrufhilfe, Gehe zu Zeile, zur passenden Klammer, synchrones Scrollen der
@@ -67,6 +71,11 @@ geteilten Ansicht. Statusleiste wie in Notepad++ («Länge: … Zeilen: …», �
 Zeilenende, Zeichensatz, INS/OVR; ein Klick öffnet das passende Menü). Hashwerte (MD5, SHA-1,
 SHA-256, SHA-512), «Ausführen …» mit den Variablen von Notepad++, Datei im Browser öffnen.
 Befehl `griffel` fürs Terminal (installieren im Menü «Griffel»).
+
+**Optionen.** Der Dialog hat alle 23 Seiten von Notepad++ (⌘,). Was Griffel einstellen kann, wirkt
+sofort; der Rest steht ausgegraut.
+
+![Der Dialog «Optionen», Seite «Dateireiter (Tabs)»](docs/bilder/optionen.png)
 
 ### Tastenkürzel
 
@@ -143,6 +152,10 @@ Die App kann sich selbst prüfen und schreibt einen Bericht samt Bildern ihrer F
 open -g -n -W -a build/Griffel.app datei.txt --args -KladdeProbe /tmp/probe -KladdeProbeAktion nichts -KladdeSitzung /tmp/sitzung -KladdeUDL /tmp/udl
 ```
 
+Die Bilder in diesem README erneuert `./scripts/bilder.sh`: Eine Kopie der App mit eigener Kennung
+öffnet die Beispiele aus `docs/bilder/beispiele/` und zeichnet ihre Fenster selbst (Selbstprüfung
+«bilder»).
+
 ## Aufbau
 
 | Ort | Inhalt |
@@ -152,7 +165,7 @@ open -g -n -W -a build/Griffel.app datei.txt --args -KladdeProbe /tmp/probe -Kla
 | `Tests/KladdeKernTests/` | Tests dazu |
 | `Sources/ScintillaBruecke/` | Macht ScintillaView und Lexilla für Swift sichtbar |
 | `extern/mac/windows.h` | Ersatz für `<windows.h>`, damit der UDL-Lexer von Notepad++ auf dem Mac baut |
-| `scripts/` | Bau von Kern, App, Sprachdaten, Icon und DMG |
+| `scripts/` | Bau von Kern, App, Sprachdaten, Icon, DMG und der Bilder fürs README |
 | `Ressourcen/` | Info.plist, Icon, Befehl `griffel` |
 
 Ordner, Module, die Kennung `io.github.simon-baumhauer.kladde` und die Startschalter `-Kladde…` tragen

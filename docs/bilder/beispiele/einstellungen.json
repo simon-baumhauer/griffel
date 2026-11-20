@@ -1,0 +1,12 @@
+{
+  "editor": {
+    "name": "Griffel",
+    "version": "1.5.0",
+    "schrift": { "name": "Menlo", "groesse": 13 },
+    "schema": "hell",
+    "umbruch": false
+  },
+  "sitzung": { "merken": true, "sekunden": 7 },
+  "plugins": ["JSON", "XML", "MIME"],
+  "tabs": 4
+}

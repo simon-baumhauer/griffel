@@ -77,6 +77,9 @@ enum Probe {
         case "oberflaeche":
             oberflaeche(ordner: ordner, bericht: { bericht.append($0) }, fertig: schliesse)
             return
+        case "bilder":
+            bilder(ordner: ordner, bericht: { bericht.append($0) }, fertig: schliesse)
+            return
         case "suchen":
             sucheProbe(dokumente: dokumente, ordner: ordner, bericht: { bericht.append($0) }, fertig: schliesse)
             return
@@ -521,6 +524,84 @@ enum Probe {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { fuehreAus(i + 1) }
         }
         fuehreAus(0)
+    }
+
+    /// Die Bilder fürs README (scripts/bilder.sh legt sie nach docs/bilder/): das
+    /// Fenster hell mit Python und dunkel mit TypeScript, beide mit Seitenleisten,
+    /// dazu der Suchen-Dialog, der JSON Viewer und «Optionen». Die Beispiele aus
+    /// docs/bilder/beispiele/ kommen beim Start mit. Der kurze Fenstertitel zeigt
+    /// nur den Dateinamen, keinen Pfad. Die Einstellungen gehen danach zurück.
+    private static func bilder(ordner: URL, bericht: @escaping (String) -> Void, fertig: @escaping () -> Void) {
+        let h = Hauptfenster.gemeinsam
+        guard let fenster = h.window else { return fertig() }
+        let vorher = (Einstellungen.funktionslisteSichtbar, Einstellungen.dokumentenlisteSichtbar,
+                      Einstellungen.miniaturansichtSichtbar, Einstellungen.farbschema, Einstellungen.kurzerTitel)
+        func vorne(_ endung: String) {
+            if let d = h.tabs.first(where: { $0.fileURL?.pathExtension == endung }) { h.aktiviere(d) }
+            h.tabsGeaendert()
+            h.editor?.ersteZeile = 0
+        }
+        var schritte: [() -> Void] = []
+        schritte.append {
+            NSApp.appearance = NSAppearance(named: .aqua)
+            Einstellungen.farbschema = "Standard"
+            Einstellungen.kurzerTitel = true
+            Einstellungen.funktionslisteSichtbar = true
+            Einstellungen.dokumentenlisteSichtbar = true
+            Einstellungen.miniaturansichtSichtbar = true
+            Panels.gemeinsam.anwenden()
+            fenster.setContentSize(NSSize(width: 1200, height: 740))
+            h.ordneDocks()
+            h.rechterDock.waehle(Panels.gemeinsam.funktionslisteLeiste)
+            vorne("py")
+        }
+        schritte.append {}
+        schritte.append { bild(von: fenster, nach: ordner.appendingPathComponent("griffel.png")) }
+        schritte.append {
+            NSApp.appearance = NSAppearance(named: .darkAqua)
+            Einstellungen.farbschema = "DarkModeDefault"
+            // Für TypeScript findet die Funktionsliste von Notepad++ keine Methoden.
+            h.rechterDock.waehle(Panels.gemeinsam.miniaturLeiste)
+            vorne("ts")
+        }
+        schritte.append {}
+        schritte.append { bild(von: fenster, nach: ordner.appendingPathComponent("griffel-dunkel.png")) }
+        schritte.append {
+            NSApp.appearance = NSAppearance(named: .aqua)
+            Einstellungen.farbschema = "Standard"
+            vorne("py")
+            SuchenDialog.gemeinsam.setzeSuchtextFuerProbe("Rechnung", ersetzung: "Beleg")
+            SuchenDialog.gemeinsam.zeige(.ersetzen)
+        }
+        schritte.append {}
+        schritte.append {
+            if let w = SuchenDialog.gemeinsam.window { bild(von: w, nach: ordner.appendingPathComponent("suchen.png")) }
+            SuchenDialog.gemeinsam.close()
+            fenster.makeKeyAndOrderFront(nil)
+            vorne("json")
+            // Der Befehl schaltet um; nur öffnen, wenn der Viewer noch fehlt.
+            if !h.rechterDock.enthaelt(Panels.gemeinsam.jsonLeiste) { Plugins.gemeinsam.fuehreAus("json.viewer") }
+        }
+        schritte.append { h.rechterDock.waehle(Panels.gemeinsam.jsonLeiste) }
+        schritte.append { bild(von: fenster, nach: ordner.appendingPathComponent("json-viewer.png")) }
+        schritte.append {
+            EinstellungsFenster.gemeinsam.zeige()
+            EinstellungsFenster.gemeinsam.zeigeSeite(kennung: "Tabbar")
+        }
+        schritte.append {}
+        schritte.append {
+            if let w = EinstellungsFenster.gemeinsam.window { bild(von: w, nach: ordner.appendingPathComponent("optionen.png")) }
+            EinstellungsFenster.gemeinsam.close()
+            bericht("bilder: tabs \(h.tabs.map(\.tabTitel)), titel «\(fenster.title)»")
+            NSApp.appearance = nil
+            (Einstellungen.funktionslisteSichtbar, Einstellungen.dokumentenlisteSichtbar,
+             Einstellungen.miniaturansichtSichtbar, Einstellungen.farbschema, Einstellungen.kurzerTitel) = vorher
+            fertig()
+        }
+        // Mit Pausen, damit Scintilla, Seitenleisten und Dialoge zeichnen.
+        for (index, schritt) in schritte.enumerated() {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5 * Double(index), execute: schritt)
+        }
     }
 
     /// Bilder der Oberfläche: Fenster hell und dunkel, Seitenleisten, Suchergebnis,
