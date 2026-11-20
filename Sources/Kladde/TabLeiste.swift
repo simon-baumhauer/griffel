@@ -284,24 +284,58 @@ final class TabLeiste: NSView {
         rolle(um: -d * 3)
     }
 
-    private func rolle(nachRechts: Bool) { rolle(um: nachRechts ? 120 : -120) }
+    /// Wo jeder Tab ohne Verschiebung beginnt; verschoben wird immer um ganze Tabs,
+    /// wie im Tab-Control von Windows, damit links nie ein halber Tab steht.
+    private var anfaenge: [CGFloat] {
+        var x: CGFloat = 0
+        return tabs().map { t in defer { x += breite(t) }; return x }
+    }
 
-    private func rolle(um d: CGFloat) {
-        berechne()
-        let gesamt = (rechtecke.last?.maxX ?? 0) + versatz + 40
-        versatz = min(max(0, versatz + d), max(0, gesamt - bounds.width))
+    private var gesamtbreite: CGFloat { tabs().reduce(0) { $0 + breite($1) } + 4 }
+
+    /// Der grösste sinnvolle Versatz: der kleinste Tab-Anfang, ab dem der Rest ganz passt.
+    private var groessterVersatz: CGFloat {
+        let platz = bounds.width - 40
+        guard gesamtbreite > bounds.width - 4 else { return 0 }
+        return anfaenge.first { gesamtbreite - $0 <= platz } ?? (anfaenge.last ?? 0)
+    }
+
+    private func rolle(nachRechts: Bool) {
+        let a = anfaenge
+        let i = a.lastIndex { $0 <= versatz + 0.5 } ?? 0
+        let ziel = nachRechts ? a[min(i + 1, a.count - 1)] : a[max(i - 1, 0)]
+        versatz = min(ziel, groessterVersatz)
         needsDisplay = true
     }
 
-    /// Den aktiven Tab ins Bild holen.
+    private func rolle(um d: CGFloat) {
+        // Mausrad: weich mitzählen, dann auf den nächsten Tab einrasten.
+        rad += d
+        guard abs(rad) >= 40 else { return }
+        rolle(nachRechts: rad > 0)
+        rad = 0
+    }
+
+    private var rad: CGFloat = 0
+
+    /// Den aktiven Tab ganz ins Bild holen.
     func zeigeAktiven() {
-        berechne()
-        guard let a = aktiverIndex(), a < rechtecke.count else { needsDisplay = true; return }
-        let r = rechtecke[a]
-        let rechts = bounds.width - ((ueberlauf || versatz > 0) ? 40 : 4)
-        if r.minX < 0 { versatz += r.minX - 2 } else if r.maxX > rechts { versatz += r.maxX - rechts }
-        versatz = max(0, versatz)
+        let a = anfaenge
+        let liste = tabs()
+        guard let i = aktiverIndex(), i < a.count else { versatz = min(versatz, groessterVersatz); needsDisplay = true; return }
+        let platz = bounds.width - (gesamtbreite > bounds.width - 4 ? 40 : 4)
+        if a[i] < versatz {
+            versatz = a[i]
+        } else if a[i] + breite(liste[i]) - versatz > platz {
+            versatz = a.first { a[i] + breite(liste[i]) - $0 <= platz } ?? a[i]
+        }
+        versatz = min(versatz, groessterVersatz)
         needsDisplay = true
+    }
+
+    override func resizeSubviews(withOldSize oldSize: NSSize) {
+        super.resizeSubviews(withOldSize: oldSize)
+        zeigeAktiven()
     }
 }
 

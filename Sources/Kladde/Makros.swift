@@ -201,46 +201,6 @@ enum MakroDialoge {
         }
     }
 
-    /// Wie «Run a Macro Multiple Times» in Notepad++: n-mal oder bis zum Ende der Datei.
-    static func mehrfach(fenster: NSWindow?, editor e: Editor) {
-        let makros = Makros.gemeinsam
-        if makros.nimmtAuf { makros.beende() }
-        guard let fenster else { return }
-        let auswahl = NSPopUpButton()
-        auswahl.addItem(withTitle: "Aktuell aufgenommenes Makro")
-        for makro in makros.gesicherte { auswahl.addItem(withTitle: makro.name) }
-        let nMal = NSButton(radioButtonWithTitle: "Ausführen:", target: nil, action: nil)
-        let bisEnde = NSButton(radioButtonWithTitle: "Bis zum Dateiende ausführen", target: nil, action: nil)
-        nMal.state = .on
-        let anzahl = NSTextField(string: "1")
-        anzahl.widthAnchor.constraint(equalToConstant: 60).isActive = true
-        let zeileN = NSStackView(views: [nMal, anzahl, NSTextField(labelWithString: "mal")])
-        let stapel = NSStackView(views: [auswahl, zeileN, bisEnde])
-        stapel.orientation = .vertical
-        stapel.alignment = .leading
-        stapel.frame = NSRect(x: 0, y: 0, width: 320, height: 90)
-        let gruppe = RadioGruppe([nMal, bisEnde])
-        for k in [nMal, bisEnde] {
-            k.target = gruppe
-            k.action = #selector(RadioGruppe.gewaehlt(_:))
-        }
-        let frage = NSAlert()
-        frage.messageText = Oberflaeche.gemeinsam.titel("IDM_MACRO_RUNMULTIMACRODLG").replacingOccurrences(of: " …", with: "")
-        frage.accessoryView = stapel
-        frage.addButton(withTitle: "Ausführen")
-        frage.addButton(withTitle: "Abbrechen")
-        frage.beginSheetModal(for: fenster) { antwort in
-            _ = gruppe
-            guard antwort == .alertFirstButtonReturn else { return }
-            let schritte = auswahl.indexOfSelectedItem == 0
-                ? makros.aktuelles : makros.gesicherte[auswahl.indexOfSelectedItem - 1].schritte
-            if bisEnde.state == .on {
-                makros.spieleBisEnde(schritte, in: e)
-            } else {
-                makros.spiele(schritte, in: e, mal: max(1, min(anzahl.integerValue, 100_000)))
-            }
-        }
-    }
 }
 
 /// Radioknöpfe, die nicht im selben Elternelement liegen, schliessen sich nicht

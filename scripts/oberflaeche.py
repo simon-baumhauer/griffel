@@ -34,7 +34,7 @@ def lies(pfad):
 def defines(*dateien):
     roh = {}
     for d in dateien:
-        for name, wert in re.findall(r"^\s*#define\s+(\w+)\s+([^\n/]+)", lies(d), re.M):
+        for name, wert in re.findall(r"^[ \t]*#define[ \t]+(\w+)[ \t]+([^\n/]+)", lies(d), re.M):
             roh[name] = wert.strip()
     werte = {}
     for _ in range(20):
@@ -273,6 +273,54 @@ suchen = {
     "elemente": elemente,
 }
 
+# ---------------------------------------------------------------- Weitere Dialoge
+
+def dialog(rc, name, header, de_name):
+    """Ein Dialog aus einer .rc-Datei: Grösse, Elemente mit deutschem Text, Titel."""
+    t = lies(rc)
+    block = t[t.index(f"{name} DIALOGEX"):]
+    groesse = [int(x) for x in re.match(rf"{name} DIALOGEX\s+\d+,\s*\d+,\s*(\d+),\s*(\d+)", block).groups()]
+    block = block[block.index("BEGIN"):block.index("\nEND")]
+    nummern = defines(*header, "resource.h")
+    nummern.setdefault("IDOK", 1)
+    nummern.setdefault("IDCANCEL", 2)
+    knoten = de.find(f".//Dialog/{de_name}")
+    texte = {}
+    listen = {}
+    if knoten is not None:
+        texte = {int(e.get("id")): sauber(e.get("name")) for e in knoten.iter("Item") if e.get("id", "").isdigit()}
+        listen = {int(c.get("id")): [sauber(x.get("name")) for x in c.iter("Element")] for c in knoten.iter("ComboBox")}
+    elemente = []
+    for z in block.splitlines():
+        z = z.strip()
+        if z.startswith("//"):
+            continue
+        m = re.match(r'(\w+)\s+(?:"((?:[^"]|"")*)",\s*)?(\w+),\s*(?:"(\w+)",\s*([\w| ]+),\s*)?(\d+),\s*(\d+),\s*(\d+),\s*(\d+)\s*(?:,\s*([\w| ]+))?', z)
+        if not m:
+            continue
+        art, text, kennung, klasse, stil, x, y, b, h, stil2 = m.groups()
+        stil = (stil or "") + "|" + (stil2 or "")
+        if art == "CONTROL":
+            art = "RADIO" if "RADIO" in stil else "CHECKBOX" if "CHECKBOX" in stil else "CONTROL"
+        if art == "DEFPUSHBUTTON":
+            art, stil = "PUSHBUTTON", stil + "|STANDARD"
+        nummer = nummern.get(kennung)
+        e = {"art": art, "id": kennung, "text": texte.get(nummer, sauber(text or "")),
+             "x": int(x), "y": int(y), "b": int(b), "h": int(h), "stil": stil}
+        if nummer in listen:
+            e["liste"] = listen[nummer]
+        elemente.append(e)
+    titel = knoten.get("title") if knoten is not None else name
+    return {"titel": titel, "groesse": groesse, "elemente": elemente}
+
+dialoge = {
+    "gehezu": dialog("Notepad_plus.rc", "IDD_GOLINE", [], "GoToLine"),
+    "ausfuehren": dialog("WinControls/StaticDialog/RunDlg/RunDlg.rc", "IDD_RUN_DLG", ["WinControls/StaticDialog/RunDlg/RunDlg_rc.h"], "Run"),
+    "spalten": dialog("ScintillaComponent/columnEditor.rc", "IDD_COLUMNEDIT", ["ScintillaComponent/columnEditor_rc.h"], "ColumnEditor"),
+    "makro": dialog("WinControls/shortcut/RunMacroDlg.rc", "IDD_RUN_MACRO_DLG", ["WinControls/shortcut/RunMacroDlg_rc.h"], "MultiMacro"),
+    "hash": dialog("MISC/md5/md5Dlgs.rc", "IDD_HASHFROMTEXT_DLG", ["MISC/md5/md5Dlgs_rc.h"], "MD5FromTextDlg"),
+}
+
 # ---------------------------------------------------------------- Statusleiste und Rest
 
 misc = de.find(".//MiscStrings")
@@ -298,7 +346,7 @@ for dialog in ("GoToLine", "Run", "IncrementalFind", "MD5FromTextDlg", "SHA1From
     for item in knoten.iter("Item"):
         texte[f"{dialog}.{item.get('id')}"] = sauber(item.get("name"))
 
-ergebnis = {"menues": hauptmenues, "tabmenue": tabmenue, "suchen": suchen, "texte": texte}
+ergebnis = {"menues": hauptmenues, "tabmenue": tabmenue, "suchen": suchen, "dialoge": dialoge, "texte": texte}
 ziel.write_text(json.dumps(ergebnis, ensure_ascii=False, indent=1), encoding="utf-8")
 
 anzahl = 0

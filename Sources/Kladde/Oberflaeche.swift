@@ -50,6 +50,15 @@ struct Oberflaeche: Decodable {
         let y: Int
         let b: Int
         let h: Int
+        var stil: String? = nil
+        var liste: [String]? = nil
+    }
+
+    /// Ein Dialog aus einer .rc-Datei von Notepad++ (Gehe zu, Ausführen, Block-Editor …).
+    struct Dialog: Decodable {
+        let titel: String
+        let groesse: [Int]
+        let elemente: [Element]
     }
 
     struct Suchen: Decodable {
@@ -61,6 +70,7 @@ struct Oberflaeche: Decodable {
     let menues: [Menue]
     let tabmenue: [Eintrag]
     let suchen: Suchen
+    var dialoge: [String: Dialog]?
     let texte: [String: String]
 
     static let gemeinsam: Oberflaeche = {

@@ -1,35 +1,120 @@
 import AppKit
 import ScintillaBruecke
 
-/// Ein Andockbereich (links, rechts, unten), der Seitenleisten untereinander hält.
+/// Ein Andockbereich (links, rechts, unten) wie in Notepad++: Mehrere
+/// Seitenleisten teilen sich den Platz, eine ist zu sehen, unten stehen Reiter
+/// zum Wechseln. So wird keine Leiste zu klein.
 final class Dock: NSView {
-    private let teilung = NSSplitView()
+    private(set) var leisten: [Seitenleiste] = []
+    private(set) var aktiv: Seitenleiste?
+    private let reiter = DockReiter()
     var leerGeworden: (() -> Void)?
-    var istLeer: Bool { teilung.arrangedSubviews.isEmpty }
+    var istLeer: Bool { leisten.isEmpty }
 
     override init(frame: NSRect) {
         super.init(frame: frame)
-        teilung.isVertical = false
-        teilung.dividerStyle = .thin
-        teilung.translatesAutoresizingMaskIntoConstraints = false
-        addSubview(teilung)
-        NSLayoutConstraint.activate([
-            teilung.leadingAnchor.constraint(equalTo: leadingAnchor), teilung.trailingAnchor.constraint(equalTo: trailingAnchor),
-            teilung.topAnchor.constraint(equalTo: topAnchor), teilung.bottomAnchor.constraint(equalTo: bottomAnchor),
-        ])
+        reiter.gewechselt = { [weak self] i in
+            guard let self, self.leisten.indices.contains(i) else { return }
+            self.waehle(self.leisten[i])
+        }
+        addSubview(reiter)
     }
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError() }
 
+    override var isFlipped: Bool { true }
+
     func zeige(_ leiste: Seitenleiste, an: Bool) {
-        let drin = teilung.arrangedSubviews.contains(leiste)
+        let drin = leisten.contains { $0 === leiste }
         guard an != drin else { return }
-        if an { teilung.addArrangedSubview(leiste) } else { teilung.removeArrangedSubview(leiste); leiste.removeFromSuperview() }
+        if an {
+            leisten.append(leiste)
+            waehle(leiste)
+        } else {
+            leisten.removeAll { $0 === leiste }
+            leiste.removeFromSuperview()
+            if aktiv === leiste { aktiv = nil; if let l = leisten.last { waehle(l) } }
+            ordne()
+        }
         leerGeworden?()
     }
 
-    func enthaelt(_ leiste: Seitenleiste) -> Bool { teilung.arrangedSubviews.contains(leiste) }
+    func enthaelt(_ leiste: Seitenleiste) -> Bool { leisten.contains { $0 === leiste } }
+
+    func waehle(_ leiste: Seitenleiste) {
+        if aktiv !== leiste { aktiv?.removeFromSuperview() }
+        aktiv = leiste
+        if leiste.superview !== self { addSubview(leiste, positioned: .below, relativeTo: reiter) }
+        ordne()
+    }
+
+    private func ordne() {
+        reiter.titel = leisten.map(\.titel)
+        reiter.gewaehlt = leisten.firstIndex { $0 === aktiv } ?? 0
+        let mitReitern = leisten.count > 1
+        reiter.isHidden = !mitReitern
+        let h: CGFloat = mitReitern ? 24 : 0
+        reiter.frame = NSRect(x: 0, y: bounds.height - h, width: bounds.width, height: h)
+        aktiv?.translatesAutoresizingMaskIntoConstraints = true
+        aktiv?.frame = NSRect(x: 0, y: 0, width: bounds.width, height: bounds.height - h)
+        reiter.needsDisplay = true
+    }
+
+    override func resizeSubviews(withOldSize oldSize: NSSize) { ordne() }
+    override func layout() { super.layout(); ordne() }
+}
+
+/// Die Reiter unter einem Dock: der gewählte hell und mit der Fläche darüber verbunden.
+final class DockReiter: NSView {
+    var titel: [String] = [] { didSet { needsDisplay = true } }
+    var gewaehlt = 0 { didSet { needsDisplay = true } }
+    var gewechselt: ((Int) -> Void)?
+    override var isFlipped: Bool { true }
+
+    private func rechtecke() -> [NSRect] {
+        var x: CGFloat = 2
+        let verfuegbar = bounds.width - 4
+        let natuerlich = titel.map { ($0 as NSString).size(withAttributes: [.font: NSFont.systemFont(ofSize: 11)]).width + 16 }
+        // Zu breit: alle gleich schmal, Text gekürzt.
+        let faktor = min(1, verfuegbar / max(1, natuerlich.reduce(0, +)))
+        return natuerlich.map { b in
+            defer { x += b * faktor }
+            return NSRect(x: x, y: 0, width: b * faktor, height: bounds.height - 2)
+        }
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        let p = convert(event.locationInWindow, from: nil)
+        if let i = rechtecke().firstIndex(where: { $0.contains(p) }), i != gewaehlt { gewaehlt = i; gewechselt?(i) }
+    }
+
+    override func draw(_ dirtyRect: NSRect) {
+        let d = Hauptfenster.istDunkel
+        NSColor(rgb: d ? 0x202020 : 0xF0F0F0).setFill()
+        bounds.fill()
+        let rand = NSColor(rgb: d ? 0x646464 : 0xC8C8C8)
+        rand.setFill()
+        NSRect(x: 0, y: 0, width: bounds.width, height: 1).fill()
+        for (i, r) in rechtecke().enumerated() {
+            let an = i == gewaehlt
+            let f = an ? NSRect(x: r.minX, y: 0, width: r.width, height: r.height + 1) : r.insetBy(dx: 0, dy: 2).offsetBy(dx: 0, dy: -2)
+            NSColor(rgb: an ? (d ? 0x383838 : 0xFFFFFF) : (d ? 0x2B2B2B : 0xF0F0F0)).setFill()
+            f.fill()
+            rand.setStroke()
+            let p = NSBezierPath()
+            p.move(to: NSPoint(x: f.minX + 0.5, y: f.minY))
+            p.line(to: NSPoint(x: f.minX + 0.5, y: f.maxY - 0.5))
+            p.line(to: NSPoint(x: f.maxX - 0.5, y: f.maxY - 0.5))
+            p.line(to: NSPoint(x: f.maxX - 0.5, y: f.minY))
+            p.stroke()
+            let absatz = NSMutableParagraphStyle()
+            absatz.alignment = .center
+            absatz.lineBreakMode = .byTruncatingTail
+            let a: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: 11), .foregroundColor: NSColor(rgb: d ? 0xE0E0E0 : 0x000000), .paragraphStyle: absatz]
+            (titel[i] as NSString).draw(in: NSRect(x: f.minX + 4, y: f.midY - 7, width: f.width - 8, height: 15), withAttributes: a)
+        }
+    }
 }
 
 /// Eine Seitenleiste mit Titelzeile und ✕ wie die Docking-Panels von Notepad++.

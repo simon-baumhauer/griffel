@@ -10,7 +10,8 @@ Autovervollständigung kommen ebenfalls von dort. Die Oberfläche ist in Swift m
 und sieht aus wie die von Notepad++: ein Fenster mit der Werkzeugleiste und ihren Original-Symbolen,
 die Tableiste mit Heften und Schliessen, die Menüs mit allen Befehlen und den Texten der deutschen
 Übersetzung (nicht umgesetzte stehen ausgegraut), der Suchen-Dialog mit seinen vier Reitern, die
-Seitenleisten und die Statusleiste. Nur Fensterrahmen und Menüleiste oben sind vom Mac. Für Apple
+Dialoge Gehe zu, Ausführen, Block-Editor, Makro mehrfach, Hashwert und Optionen im Windows-Stil von
+Notepad++ (Aufbau aus dessen .rc-Dateien), die Seitenleisten mit Reitern unten und die Statusleiste. Nur Fensterrahmen und Menüleiste oben sind vom Mac. Für Apple
 Silicon und Intel, ab macOS 13.
 
 ![Kladde mit einer Python-Datei, links die Dokumentenliste, rechts Funktionsliste und Miniaturansicht](docs/bilder/kladde.png)

@@ -305,7 +305,7 @@ extension Hauptfenster: NSMenuItemValidation {
             hinweis.messageText = Oberflaeche.gemeinsam.titel(voll).replacingOccurrences(of: " …", with: "")
             hinweis.informativeText = "Spaltenauswahl: ⌥ (Wahltaste) gedrückt halten und mit der Maus ziehen, oder ⌥⇧ mit den Pfeiltasten. Dann tippen, einfügen oder den Block-Editor (⌥⌘C) nutzen."
             hinweis.beginSheetModal(for: window!)
-        case "EDIT_COLUMNMODE": if let e, let w = window { Spalteneditor.zeige(in: w, editor: e) }
+        case "EDIT_COLUMNMODE": if let e { Dialoge.blockEditor(e) }
         case "EDIT_TOGGLEREADONLY": d?.schreibgeschuetzt.toggle()
         case "EDIT_SETREADONLYFORALLDOCS": tabs.forEach { $0.schreibgeschuetzt = true }
         case "EDIT_CLEARREADONLYFORALLDOCS": tabs.forEach { $0.schreibgeschuetzt = false }
@@ -337,7 +337,7 @@ extension Hauptfenster: NSMenuItemValidation {
         case "FOCUS_ON_FOUND_RESULTS": Suchergebnisse.gemeinsam.fokussiere()
         case "SEARCH_GOTONEXTFOUND": Suchergebnisse.gemeinsam.springe(weiter: true)
         case "SEARCH_GOTOPREVFOUND": Suchergebnisse.gemeinsam.springe(weiter: false)
-        case "SEARCH_GOTOLINE": geheZuZeile()
+        case "SEARCH_GOTOLINE": if let e { Dialoge.geheZu(e) }
         case "SEARCH_GOTOMATCHINGBRACE": e?.geheZurPassendenKlammer(auswaehlen: false)
         case "SEARCH_SELECTMATCHINGBRACES": e?.geheZurPassendenKlammer(auswaehlen: true)
         case "SEARCH_CLEARALLMARKS":
@@ -445,8 +445,8 @@ extension Hauptfenster: NSMenuItemValidation {
         case "MACRO_STOPRECORDINGMACRO": Makros.gemeinsam.beende(); werkzeugleiste.aktualisiere()
         case "MACRO_PLAYBACKRECORDEDMACRO": if let e { Makros.gemeinsam.spiele(Makros.gemeinsam.aktuelles, in: e) }
         case "MACRO_SAVECURRENTMACRO": MakroDialoge.sichern(fenster: window)
-        case "MACRO_RUNMULTIMACRODLG": if let e { MakroDialoge.mehrfach(fenster: window, editor: e) }
-        case "EXECUTE": Werkzeuge.ausfuehren(dokument: d, editor: e, fenster: window)
+        case "MACRO_RUNMULTIMACRODLG": if let e { Dialoge.makroMehrfach(e) }
+        case "EXECUTE": Dialoge.ausfuehren(d, e)
         case let s where s.hasPrefix("WINDOW_SORT_"):
             let art = s.dropFirst("WINDOW_SORT_".count).prefix(2)
             let ab = s.hasSuffix("DSC")
@@ -510,25 +510,6 @@ extension Hauptfenster: NSMenuItemValidation {
         e.nachricht(SCI_SETSEARCHFLAGS, Int(schalter))
         e.nachricht(SCI_TARGETWHOLEDOCUMENT)
         e.nachricht(alle ? SCI_MULTIPLESELECTADDEACH : SCI_MULTIPLESELECTADDNEXT)
-    }
-
-    func geheZuZeile() {
-        guard let e = aktiv, let w = window else { return }
-        let o = Oberflaeche.gemeinsam
-        let frage = NSAlert()
-        frage.messageText = o.texte["GoToLine.title"] ?? "Gehe zu"
-        frage.informativeText = "Zeile 1 bis \(e.zeilenanzahl), jetzt \(e.aktuelleZeile)"
-        let feld = NSTextField(frame: NSRect(x: 0, y: 0, width: 200, height: 24))
-        feld.placeholderString = "\(e.aktuelleZeile)"
-        frage.accessoryView = feld
-        frage.addButton(withTitle: o.texte["GoToLine.1"] ?? "Los")
-        frage.addButton(withTitle: o.texte["GoToLine.2"] ?? "Abbrechen")
-        frage.window.initialFirstResponder = feld
-        frage.beginSheetModal(for: w) { antwort in
-            guard antwort == .alertFirstButtonReturn, let z = Int(feld.stringValue.trimmingCharacters(in: .whitespaces)) else { return }
-            e.geheZuZeile(z)
-            w.makeFirstResponder(e.ansicht.content())
-        }
     }
 
     private func neuLaden(_ d: Dokument?) {

@@ -29,6 +29,9 @@ final class Werkzeugleiste: NSView {
 
     private var stapel = NSStackView()
     private var knopfListe: [Knopf] = []
+    /// » am rechten Rand, wenn nicht alle Knöpfe Platz haben (wie die Chevron-Taste von Windows).
+    private let mehr = NSButton(title: "»", target: nil, action: nil)
+    private var versteckte: [Knopf] = []
     static let hoehe: CGFloat = 28
 
     override init(frame: NSRect) {
@@ -46,6 +49,13 @@ final class Werkzeugleiste: NSView {
             stapel.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor),
         ])
         baue()
+        mehr.isBordered = false
+        mehr.font = .systemFont(ofSize: 14, weight: .semibold)
+        mehr.target = self
+        mehr.action = #selector(zeigeVersteckte)
+        mehr.toolTip = "Weitere Knöpfe"
+        mehr.isHidden = true
+        addSubview(mehr)
         setAccessibilityRole(.toolbar)
     }
 
@@ -73,6 +83,46 @@ final class Werkzeugleiste: NSView {
     }
 
     @objc private func gedrueckt(_ sender: Knopf) { ausfuehren(sender.befehl) }
+
+    // MARK: Überlauf
+
+    override func layout() {
+        super.layout()
+        // Von hinten ausblenden, bis der Rest neben das » passt; Trenner am Ende gleich mit.
+        let platz = bounds.width - 22
+        var x: CGFloat = 3
+        versteckte = []
+        var voll = false
+        for v in stapel.arrangedSubviews {
+            let b = (v as? Knopf).map(\.breite) ?? 8
+            if !voll, x + b > platz { voll = true }
+            if voll {
+                v.isHidden = true
+                if let k = v as? Knopf { versteckte.append(k) }
+            } else {
+                v.isHidden = false
+                x += b
+            }
+        }
+        // Passt alles, wenn man den Platz für » nicht braucht?
+        let gesamt = stapel.arrangedSubviews.reduce(CGFloat(3)) { $0 + (($1 as? Knopf)?.breite ?? 8) }
+        if gesamt <= bounds.width - 3 {
+            stapel.arrangedSubviews.forEach { $0.isHidden = false }
+            versteckte = []
+        }
+        mehr.isHidden = versteckte.isEmpty
+        mehr.frame = NSRect(x: bounds.width - 20, y: 3, width: 18, height: bounds.height - 6)
+    }
+
+    @objc private func zeigeVersteckte() {
+        let m = NSMenu()
+        for k in versteckte {
+            let i = Befehlsmenue.eintrag(id: k.befehl, titel: Oberflaeche.gemeinsam.titel(k.befehl), kuerzel: Oberflaeche.gemeinsam.kuerzel(k.befehl))
+            i.image = k.bild
+            m.addItem(i)
+        }
+        m.popUp(positioning: nil, at: NSPoint(x: 0, y: -2), in: mehr)
+    }
 
     // MARK: Aufklappmenüs
 
@@ -209,6 +259,7 @@ final class Werkzeugleiste: NSView {
         private var unten = false
         private var pfeilOffen = false
         static let pfeilBreite: CGFloat = 11
+        var breite: CGFloat { 23 + (aufklappen == nil ? 0 : Self.pfeilBreite) }
 
         init(symbol: String, befehl: String, aufklappen: (() -> NSMenu)? = nil) {
             self.symbol = symbol

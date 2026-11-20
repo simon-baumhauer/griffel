@@ -63,7 +63,7 @@ enum Werkzeuge {
 
     // MARK: Hashwerte
 
-    private static func wert(_ art: String, _ daten: Data) -> String {
+    static func wert(_ art: String, _ daten: Data) -> String {
         let d: any Sequence<UInt8>
         switch art {
         case "MD5": d = Insecure.MD5.hash(data: daten)
@@ -76,10 +76,12 @@ enum Werkzeuge {
 
     /// Werkzeuge → MD5/SHA-1/SHA-256/SHA-512: aus Text, aus Dateien oder aus der Auswahl in die Zwischenablage.
     static func hash(_ voll: String, editor: Editor?, fenster: NSWindow?) {
-        let id = voll.replacingOccurrences(of: "IDM_TOOL_", with: "")
-        guard let art = id.split(separator: "_").first.map(String.init) else { return }
+        // Kommt als «IDM_TOOL_MD5_GENERATE» oder ohne «IDM_» an.
+        let id = voll.replacingOccurrences(of: "IDM_", with: "").replacingOccurrences(of: "TOOL_", with: "")
+        guard let art = id.split(separator: "_").first.map(String.init),
+              let anzeige = ["MD5": "MD5", "SHA1": "SHA1", "SHA256": "SHA256", "SHA512": "SHA512"][art]
+        else { return NSSound.beep() }
         let o = Oberflaeche.gemeinsam
-        let anzeige = ["MD5": "MD5", "SHA1": "SHA1", "SHA256": "SHA256", "SHA512": "SHA512"][art]!
         if id.hasSuffix("GENERATEINTOCLIPBOARD") {
             guard let e = editor, let text = e.text(e.auswahl), !text.isEmpty else { return NSSound.beep() }
             // Je Zeile ein Wert, wie Notepad++.
@@ -101,26 +103,8 @@ enum Werkzeuge {
             }
             return
         }
-        // Aus eingegebenem Text.
-        let frage = NSAlert()
-        frage.messageText = o.texte["\(anzeige)FromTextDlg.title"] ?? "\(anzeige)"
-        let eingabe = NSTextView(frame: NSRect(x: 0, y: 0, width: 420, height: 90))
-        eingabe.font = .monospacedSystemFont(ofSize: 11, weight: .regular)
-        eingabe.isRichText = false
-        let rollen = NSScrollView(frame: eingabe.frame)
-        rollen.documentView = eingabe
-        rollen.hasVerticalScroller = true
-        rollen.borderType = .bezelBorder
-        frage.accessoryView = rollen
-        frage.addButton(withTitle: "Berechnen")
-        frage.addButton(withTitle: "Abbrechen")
-        frage.window.initialFirstResponder = eingabe
-        frage.beginSheetModal(for: fenster) { antwort in
-            guard antwort == .alertFirstButtonReturn else { return }
-            let zeilen = eingabe.string.split(omittingEmptySubsequences: false, whereSeparator: \.isNewline)
-            let ergebnis = zeilen.map { wert(art, Data($0.utf8)) }.joined(separator: "\n")
-            DispatchQueue.main.async { zeige(ergebnis, titel: frage.messageText, fenster: fenster) }
-        }
+        // Aus eingegebenem Text: der Dialog von Notepad++.
+        Dialoge.hashAusText(art: art, titel: o.texte["\(anzeige)FromTextDlg.title"] ?? anzeige)
     }
 
     private static func zeige(_ text: String, titel: String, fenster: NSWindow) {
@@ -134,45 +118,31 @@ enum Werkzeuge {
 
     // MARK: Ausführen
 
-    /// Ausführen → Externes Programm ausführen: ein Befehl für die Shell, mit den
-    /// Variablen von Notepad++ ($(FULL_CURRENT_PATH), $(CURRENT_DIRECTORY) …).
-    static func ausfuehren(dokument: Dokument?, editor: Editor?, fenster: NSWindow?) {
-        guard let fenster else { return }
-        let o = Oberflaeche.gemeinsam
-        let frage = NSAlert()
-        frage.messageText = o.texte["Run.title"] ?? "Ausführen"
-        frage.informativeText = "Befehl für die Shell. Variablen: $(FULL_CURRENT_PATH), $(CURRENT_DIRECTORY), $(FILE_NAME), $(NAME_PART), $(EXT_PART), $(CURRENT_WORD), $(CURRENT_LINE)"
-        let feld = NSTextField(string: UserDefaults.standard.string(forKey: "LetzterBefehl") ?? "open \"$(FULL_CURRENT_PATH)\"")
-        feld.frame = NSRect(x: 0, y: 0, width: 420, height: 24)
-        frage.accessoryView = feld
-        frage.addButton(withTitle: o.texte["Run.1"] ?? "Ausführen")
-        frage.addButton(withTitle: o.texte["Run.2"] ?? "Abbrechen")
-        frage.window.initialFirstResponder = feld
-        frage.beginSheetModal(for: fenster) { antwort in
-            guard antwort == .alertFirstButtonReturn else { return }
-            UserDefaults.standard.set(feld.stringValue, forKey: "LetzterBefehl")
-            var befehl = feld.stringValue
-            let url = dokument?.fileURL
-            var wort = ""
-            if let e = editor {
-                let m = e.marke
-                wort = e.auswahl.isEmpty
-                    ? e.text(e.nachricht(SCI_WORDSTARTPOSITION, m, 1)..<e.nachricht(SCI_WORDENDPOSITION, m, 1)) ?? ""
-                    : e.text(e.auswahl) ?? ""
-            }
-            let variablen: [String: String] = [
-                "FULL_CURRENT_PATH": url?.path ?? "", "CURRENT_DIRECTORY": url?.deletingLastPathComponent().path ?? "",
-                "FILE_NAME": url?.lastPathComponent ?? (dokument?.tabTitel ?? ""),
-                "NAME_PART": url?.deletingPathExtension().lastPathComponent ?? "", "EXT_PART": url.map { "." + $0.pathExtension } ?? "",
-                "CURRENT_WORD": wort, "CURRENT_LINE": "\(editor?.aktuelleZeile ?? 1)",
-            ]
-            for (n, w) in variablen { befehl = befehl.replacingOccurrences(of: "$(\(n))", with: w) }
-            let prozess = Process()
-            prozess.executableURL = URL(fileURLWithPath: "/bin/zsh")
-            prozess.arguments = ["-lc", befehl]
-            if let ordner = url?.deletingLastPathComponent() { prozess.currentDirectoryURL = ordner }
-            do { try prozess.run() } catch { NSApp.presentError(error) }
+    /// Führt einen Befehl in der Shell aus, nach Einsetzen der Variablen von
+    /// Notepad++ ($(FULL_CURRENT_PATH), $(CURRENT_DIRECTORY) …).
+    static func starte(_ roh: String, dokument: Dokument?, editor: Editor?) {
+        var befehl = roh
+        let url = dokument?.fileURL
+        var wort = ""
+        if let e = editor {
+            let m = e.marke
+            wort = e.auswahl.isEmpty
+                ? e.text(e.nachricht(SCI_WORDSTARTPOSITION, m, 1)..<e.nachricht(SCI_WORDENDPOSITION, m, 1)) ?? ""
+                : e.text(e.auswahl) ?? ""
         }
+        let spalte = editor.map { $0.nachricht(SCI_GETCOLUMN, $0.marke) + 1 } ?? 1
+        let variablen: [String: String] = [
+            "FULL_CURRENT_PATH": url?.path ?? "", "CURRENT_DIRECTORY": url?.deletingLastPathComponent().path ?? "",
+            "FILE_NAME": url?.lastPathComponent ?? (dokument?.tabTitel ?? ""),
+            "NAME_PART": url?.deletingPathExtension().lastPathComponent ?? "", "EXT_PART": url.map { "." + $0.pathExtension } ?? "",
+            "CURRENT_WORD": wort, "CURRENT_LINE": "\(editor?.aktuelleZeile ?? 1)", "CURRENT_COLUMN": "\(spalte)",
+        ]
+        for (n, w) in variablen { befehl = befehl.replacingOccurrences(of: "$(\(n))", with: w) }
+        let prozess = Process()
+        prozess.executableURL = URL(fileURLWithPath: "/bin/zsh")
+        prozess.arguments = ["-lc", befehl]
+        if let ordner = url?.deletingLastPathComponent() { prozess.currentDirectoryURL = ordner }
+        do { try prozess.run() } catch { NSApp.presentError(error) }
     }
 }
 

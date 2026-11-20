@@ -63,6 +63,9 @@ final class Editor: NSObject, ScintillaNotificationProtocol {
 
     deinit {
         if let beobachter { NotificationCenter.default.removeObserver(beobachter) }
+        // Die Ansicht kann den Editor überleben (AppKit hält sie bis zum nächsten
+        // Zeichnen); ohne das ruft Scintilla einen freigegebenen Delegate.
+        ansicht.delegate = nil
     }
 
     // MARK: Nachrichten

@@ -62,6 +62,9 @@ enum Probe {
         case "etappe5":
             etappe5(ordner: ordner, bericht: { bericht.append($0) }, fertig: schliesse)
             return
+        case "review":
+            review(ordner: ordner, bericht: { bericht.append($0) }, fertig: schliesse)
+            return
         case "plugins":
             plugins(ordner: ordner, bericht: { bericht.append($0) }, fertig: schliesse)
             return
@@ -592,6 +595,75 @@ enum Probe {
              Einstellungen.miniaturansichtSichtbar, Einstellungen.farbschema) = vorher
             Suchergebnisse.gemeinsam.verberge()
             Panels.gemeinsam.anwenden()
+        }
+        func fuehreAus(_ i: Int) {
+            guard i < schritte.count else { return fertig() }
+            schritte[i]()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { fuehreAus(i + 1) }
+        }
+        fuehreAus(0)
+    }
+
+    /// Bilder für eine Durchsicht: Hauptfenster in drei Breiten, alle Leisten,
+    /// hell und dunkel, und jeder Dialog, auch die als Blatt.
+    private static func review(ordner: URL, bericht: @escaping (String) -> Void, fertig: @escaping () -> Void) {
+        let h = Hauptfenster.gemeinsam
+        guard let fenster = h.window else { return fertig() }
+        var schritte: [() -> Void] = []
+        let vorher = (Einstellungen.funktionslisteSichtbar, Einstellungen.dokumentenlisteSichtbar, Einstellungen.miniaturansichtSichtbar)
+        for (breite, hoehe) in [(1280.0, 800.0), (900.0, 640.0), (620.0, 520.0), (460.0, 420.0)] {
+            schritte.append { fenster.setContentSize(NSSize(width: breite, height: hoehe)) }
+            schritte.append { bild(von: fenster, nach: ordner.appendingPathComponent("w\(Int(breite)).png")) }
+        }
+        schritte.append {
+            fenster.setContentSize(NSSize(width: 1280, height: 800))
+            Einstellungen.funktionslisteSichtbar = true
+            Einstellungen.dokumentenlisteSichtbar = true
+            Einstellungen.miniaturansichtSichtbar = true
+            Einstellungen.arbeitsbereichSichtbar = true
+            Einstellungen.jsonViewerSichtbar = true
+        }
+        schritte.append { bild(von: fenster, nach: ordner.appendingPathComponent("leisten.png")) }
+        schritte.append { fenster.setContentSize(NSSize(width: 820, height: 600)) }
+        schritte.append { bild(von: fenster, nach: ordner.appendingPathComponent("leisten-schmal.png")) }
+        schritte.append {
+            fenster.setContentSize(NSSize(width: 1280, height: 800))
+            Einstellungen.arbeitsbereichSichtbar = false
+            Einstellungen.jsonViewerSichtbar = false
+            NSApp.appearance = NSAppearance(named: .darkAqua)
+        }
+        schritte.append {}
+        schritte.append { bild(von: fenster, nach: ordner.appendingPathComponent("dunkel.png")) }
+        schritte.append {
+            NSApp.appearance = nil
+            (Einstellungen.funktionslisteSichtbar, Einstellungen.dokumentenlisteSichtbar, Einstellungen.miniaturansichtSichtbar) = vorher
+        }
+        // Dialoge, die als Blatt am Fenster hängen.
+        for (id, name) in [("IDM_SEARCH_GOTOLINE", "gehezu"), ("IDM_EDIT_COLUMNMODE", "spalten"), ("IDM_EXECUTE", "ausfuehren"),
+                           ("IDM_MACRO_RUNMULTIMACRODLG", "makro"), ("IDM_TOOL_MD5_GENERATE", "md5"), ("IDM_FILE_RENAME", "umbenennen")] {
+            schritte.append { h.fuehreAus(id) }
+            schritte.append {
+                if let blatt = fenster.attachedSheet {
+                    bild(von: blatt, nach: ordner.appendingPathComponent("blatt-\(name).png"))
+                    fenster.endSheet(blatt)
+                } else if let w = fenster.childWindows?.first(where: { $0.isVisible && $0 !== Hinweis.gemeinsam.fensterFuerProbe }) {
+                    bild(von: w, nach: ordner.appendingPathComponent("fenster-\(name).png"))
+                    w.close()
+                } else {
+                    bericht("\(id): kein Dialog")
+                }
+            }
+        }
+        schritte.append { EinstellungsFenster.gemeinsam.zeige() }
+        for seite in [0, 2, 3, 6] {
+            schritte.append { EinstellungsFenster.gemeinsam.zeigeSeite(seite) }
+            schritte.append {
+                if let w = EinstellungsFenster.gemeinsam.window { bild(von: w, nach: ordner.appendingPathComponent("optionen-\(seite).png")) }
+            }
+        }
+        schritte.append {
+            EinstellungsFenster.gemeinsam.zeigeSeite(0)
+            EinstellungsFenster.gemeinsam.close()
         }
         func fuehreAus(_ i: Int) {
             guard i < schritte.count else { return fertig() }

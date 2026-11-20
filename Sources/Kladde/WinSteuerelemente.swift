@@ -25,16 +25,23 @@ enum Win {
     }
 
     static func zeichne(_ titel: String, in r: NSRect, farbe: NSColor, mitte: Bool = false, umbruch: Bool = false) {
-        let absatz = NSMutableParagraphStyle()
-        absatz.alignment = mitte ? .center : .left
-        absatz.lineBreakMode = umbruch ? .byWordWrapping : .byTruncatingTail
-        let a: [NSAttributedString.Key: Any] = [.font: schrift, .foregroundColor: farbe, .paragraphStyle: absatz]
         // «&» kennzeichnet unter Windows die Zugriffstaste; auf dem Mac fällt es weg.
         let t = titel.replacingOccurrences(of: "&&", with: "\u{1}").replacingOccurrences(of: "&", with: "").replacingOccurrences(of: "\u{1}", with: "&")
+        // Die Mac-Schrift ist breiter als Segoe UI: Was nicht passt, wird erst
+        // etwas kleiner (bis 10 Punkt) und erst dann umgebrochen oder gekürzt.
+        var groesse: CGFloat = 12
+        while groesse > 10, (t as NSString).size(withAttributes: [.font: NSFont.systemFont(ofSize: groesse)]).width > r.width { groesse -= 0.5 }
+        let passt = (t as NSString).size(withAttributes: [.font: NSFont.systemFont(ofSize: groesse)]).width <= r.width
+        if !passt, umbruch { groesse = 12 }
+        let absatz = NSMutableParagraphStyle()
+        absatz.alignment = mitte ? .center : .left
+        absatz.lineBreakMode = umbruch && !passt ? .byWordWrapping : .byTruncatingTail
+        let a: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: groesse), .foregroundColor: farbe, .paragraphStyle: absatz]
         let s = NSAttributedString(string: t, attributes: a)
-        let h = s.boundingRect(with: NSSize(width: r.width, height: 1000), options: [.usesLineFragmentOrigin]).height
-        s.draw(with: NSRect(x: r.minX, y: r.midY - h / 2, width: r.width, height: h), options: [.usesLineFragmentOrigin])
+        let h = min(r.height, s.boundingRect(with: NSSize(width: r.width, height: 1000), options: [.usesLineFragmentOrigin]).height)
+        s.draw(with: NSRect(x: r.minX, y: r.midY - h / 2, width: r.width, height: h), options: [.usesLineFragmentOrigin, .truncatesLastVisibleLine])
     }
+
 }
 
 /// Grundfläche eines Dialogs: oben links beginnend, Farbe wie Windows.
@@ -90,7 +97,9 @@ final class WinKaestchen: WinSchalter {
         self.rund = rund
         super.init(frame: .zero)
         title = titel
-        setButtonType(rund ? .radio : .switch)
+        // Auch Optionsfelder als Schalter: macOS koppelt sonst alle mit gleicher
+        // Aktion; die Gruppen führt der Dialog selbst.
+        setButtonType(.switch)
         self.target = target
         self.action = action
         isBordered = false
@@ -270,6 +279,14 @@ final class WinText: NSTextField {
         alignment = rechts ? .right : .left
         lineBreakMode = .byClipping
         textColor = Win.text
+    }
+
+    /// Zu lang für den Platz: erst kleiner (bis 10 Punkt), dann gekürzt.
+    override func layout() {
+        super.layout()
+        var g: CGFloat = 12
+        while g > 10, (stringValue as NSString).size(withAttributes: [.font: NSFont.systemFont(ofSize: g)]).width > bounds.width - 4 { g -= 0.5 }
+        if font?.pointSize != g { font = .systemFont(ofSize: g) }
     }
 }
 
