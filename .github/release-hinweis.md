@@ -1,5 +1,13 @@
 Ein Texteditor für den Mac nach dem Vorbild von Notepad++ – Scintilla und Lexilla wie dort, die Oberfläche in Swift nachgebaut. Für Apple Silicon und Intel, ab macOS 13.
 
+## Neu in 1.4.0
+
+- Tabs lassen sich wieder mit dem Kreuz schliessen: Im hellen Modus fehlte es, weil macOS das Symbol von Notepad++ nicht lesen konnte
+- Tableiste wie in Notepad++: Kreuz und Pin auf dem aktiven Tab, auf anderen beim Überfahren; geschlossen wird beim Loslassen über dem Kreuz
+- «Optionen» (⌘,) mit allen 23 Seiten von Notepad++; wirksam sind unter anderem die Tab-Optionen (Kreuz, Doppelklick schliesst, nicht verschiebbar, max. Namenslänge, Verkleinern …), grosse Symbole, Statusleiste ausblenden, aktuelle Zeile, Cursor, Zeilenumbruch, Faltungsstil, senkrechte Kanten, Änderungshistorie, neue Dokumente, Einrückung, Autovervollständigung, hell/dunkel; der Rest steht ausgegraut
+- Beim Schliessen ungesicherter Tabs fragt der Dialog «Speichern» von Notepad++ (Ja, Nein, Abbruch, Ja/Nein für alle)
+- Behoben: ein Absturz beim Start, verlorene «&» in Dialogtexten
+
 ## Neu in 1.3.1
 
 - Dialoge in einer Schrift wie Notepad++ (keine unterschiedlich grossen Knopftexte mehr); lange Knopftexte brechen um
