@@ -1,5 +1,15 @@
 Ein Texteditor für den Mac nach dem Vorbild von Notepad++ – Scintilla und Lexilla wie dort, die Oberfläche in Swift nachgebaut. Für Apple Silicon und Intel, ab macOS 13.
 
+## Neu in 1.3.0
+
+- Plugins eingebaut im Menü «Plugins»: JSON Viewer (Format, Compress, Validate, Baumansicht), XML Tools (Pretty print, Linarize, Check syntax), MIME Tools (Base64, URL) und Converter (ASCII ↔ HEX)
+- Suchen-Dialog im Windows-Stil von Notepad++, hell und dunkel
+- Gehe zu, Ausführen, Block-Editor, Makro mehrfach ausführen und Hashwert als Dialoge wie in Notepad++
+- Einstellungen als Dialog «Optionen» mit Kategorienliste
+- Mehrere Seitenleisten einer Seite teilen sich den Platz mit Reitern unten
+- Tableiste blättert um ganze Tabs, Symbolleiste zeigt bei Platzmangel ein »
+- Behoben: Absturz bei MD5/SHA-Hashwerten und ein seltener Absturz beim Zeichnen
+
 ## Neu in 1.2.0
 
 - Hinweise beim Überfahren der Werkzeugleiste: Name, Kürzel und in einem Satz, was der Befehl tut; dieselben Sätze als Tooltip in den Menüs
