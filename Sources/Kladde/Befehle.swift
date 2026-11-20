@@ -789,6 +789,8 @@ enum Befehlsmenue {
             item.keyEquivalent = taste
             item.keyEquivalentModifierMask = maske
         }
+        // Beim Verweilen im Menü: was der Befehl tut.
+        item.toolTip = Beschreibung.text(id)
         return item
     }
 

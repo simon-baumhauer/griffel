@@ -534,6 +534,26 @@ enum Probe {
         }
         schritte.append { bild(von: fenster, nach: ordner.appendingPathComponent("ui-hell.png")) }
         schritte.append {
+            // Hinweis über «Suchen» und die Aufklappmenüs als Text.
+            func knoepfe(_ v: NSView) -> [Werkzeugleiste.Knopf] { v.subviews.flatMap { ($0 as? Werkzeugleiste.Knopf).map { [$0] } ?? knoepfe($0) } }
+            if let k = knoepfe(h.werkzeugleiste).first(where: { $0.befehl == "IDM_SEARCH_FIND" }) {
+                Hinweis.gemeinsam.plane(fuer: k, titel: Oberflaeche.gemeinsam.titel(k.befehl).replacingOccurrences(of: " …", with: ""),
+                                        kuerzel: Beschreibung.kuerzel(k.befehl), text: Beschreibung.text(k.befehl))
+            }
+            for k in knoepfe(h.werkzeugleiste) {
+                guard let m = k.aufklappen?() else { continue }
+                bericht("▾ \(k.befehl): " + m.items.map { $0.isSeparatorItem ? "—" : $0.title + (h.validateMenuItem($0) || $0.target !== h ? "" : " (aus)") }.joined(separator: " | "))
+            }
+            let ohne = knoepfe(h.werkzeugleiste).filter { Beschreibung.text($0.befehl) == nil }.map(\.befehl)
+            bericht("knöpfe ohne beschreibung: \(ohne)")
+        }
+        schritte.append {}
+        schritte.append {
+            bild(von: Hinweis.gemeinsam.fensterFuerProbe, nach: ordner.appendingPathComponent("ui-hinweis.png"))
+            bericht("hinweis sichtbar: \(Hinweis.gemeinsam.fensterFuerProbe.isVisible)")
+            Hinweis.gemeinsam.verberge()
+        }
+        schritte.append {
             Einstellungen.funktionslisteSichtbar = true
             Einstellungen.dokumentenlisteSichtbar = true
             Einstellungen.miniaturansichtSichtbar = true

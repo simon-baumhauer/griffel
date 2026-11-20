@@ -93,6 +93,24 @@ struct Oberflaeche: Decodable {
         Self.titelIndex[id] ?? id
     }
 
+    /// Kürzel eines Befehls aus dem Hauptmenü (Notepad++-Schreibweise).
+    func kuerzel(_ id: String) -> Kuerzel? { Self.kuerzelIndex[id] }
+
+    private static let kuerzelIndex: [String: Kuerzel] = {
+        var index: [String: Kuerzel] = [:]
+        func lauf(_ liste: [Eintrag]) {
+            for e in liste {
+                switch e {
+                case .befehl(let id, _, let k, _): if let k, index[id] == nil { index[id] = k }
+                case .untermenue(_, _, let kinder): lauf(kinder)
+                case .trenner: break
+                }
+            }
+        }
+        for m in gemeinsam.menues { lauf(m.eintraege) }
+        return index
+    }()
+
     private static let titelIndex: [String: String] = {
         var index: [String: String] = [:]
         func lauf(_ liste: [Eintrag]) {
@@ -118,6 +136,8 @@ enum Mac {
         ("in der Kommandozeile", "im Terminal"),
         ("Kommandozeile hier öffnen", "Terminal hier öffnen"),
         ("Explorer", "Finder"),
+        ("STRG + ", "⌘ + "),
+        ("Strg+", "⌘+"),
         ("in Windows", "in macOS"),
         ("Notepad++", "Kladde"),
         ("Papierkorb", "Papierkorb"),

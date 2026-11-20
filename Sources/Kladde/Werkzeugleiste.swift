@@ -62,9 +62,8 @@ final class Werkzeugleiste: NSView {
                 stapel.addArrangedSubview(trenner)
                 continue
             }
-            let knopf = Knopf(symbol: symbol, befehl: befehl)
-            knopf.toolTip = Oberflaeche.gemeinsam.titel(befehl).replacingOccurrences(of: " …", with: "")
-            knopf.setAccessibilityLabel(knopf.toolTip)
+            let knopf = Knopf(symbol: symbol, befehl: befehl, aufklappen: Self.aufklappmenue(befehl))
+            knopf.setAccessibilityLabel(Oberflaeche.gemeinsam.titel(befehl).replacingOccurrences(of: " …", with: ""))
             knopf.target = self
             knopf.action = #selector(gedrueckt(_:))
             stapel.addArrangedSubview(knopf)
@@ -74,6 +73,105 @@ final class Werkzeugleiste: NSView {
     }
 
     @objc private func gedrueckt(_ sender: Knopf) { ausfuehren(sender.befehl) }
+
+    // MARK: Aufklappmenüs
+
+    /// Ein Befehl aus dem Hauptmenü, mit Titel, Kürzel und Beschreibung wie dort.
+    private static func befehl(_ id: String) -> NSMenuItem {
+        Befehlsmenue.eintrag(id: id, titel: Oberflaeche.gemeinsam.titel(id), kuerzel: Oberflaeche.gemeinsam.kuerzel(id))
+    }
+
+    private static func menue(_ ids: [String?]) -> NSMenu {
+        let m = NSMenu()
+        m.autoenablesItems = true
+        for id in ids { m.addItem(id.map(befehl) ?? .separator()) }
+        return m
+    }
+
+    /// Welche Knöpfe ein ▾ haben und was darin steht: die verwandten Befehle
+    /// aus dem Hauptmenü, beim Öffnen die zuletzt benutzten Dateien, beim
+    /// Abspielen die gesicherten Makros.
+    static func aufklappmenue(_ befehl: String) -> (() -> NSMenu)? {
+        switch befehl {
+        case "IDM_FILE_OPEN":
+            return {
+                let m = NSMenu()
+                let zuletzt = NSMenu()
+                ZuletztBenutzt.gemeinsam.menuNeedsUpdate(zuletzt)
+                if zuletzt.items.contains(where: { $0.representedObject is URL }) {
+                    let kopf = NSMenuItem(title: "Zuletzt benutzt", action: nil, keyEquivalent: "")
+                    kopf.isEnabled = false
+                    m.addItem(kopf)
+                    for i in zuletzt.items where i.representedObject is URL { zuletzt.removeItem(i); m.addItem(i) }
+                    m.addItem(.separator())
+                }
+                for id in ["IDM_FILE_OPEN", "IDM_FILE_OPENFOLDERASWORKSPACE", "IDM_FILE_RELOAD", "IDM_FILE_LOADSESSION"] {
+                    m.addItem(Self.befehl(id))
+                }
+                return m
+            }
+        case "IDM_FILE_SAVE":
+            return { menue(["IDM_FILE_SAVE", "IDM_FILE_SAVEAS", "IDM_FILE_SAVECOPYAS", "IDM_FILE_SAVEALL", nil, "IDM_FILE_SAVESESSION"]) }
+        case "IDM_FILE_CLOSE":
+            return {
+                menue(["IDM_FILE_CLOSE", "IDM_FILE_CLOSEALL", nil, "IDM_FILE_CLOSEALL_BUT_CURRENT", "IDM_FILE_CLOSEALL_BUT_PINNED",
+                       "IDM_FILE_CLOSEALL_TOLEFT", "IDM_FILE_CLOSEALL_TORIGHT", "IDM_FILE_CLOSEALL_UNCHANGED"])
+            }
+        case "IDM_FILE_PRINT": return { menue(["IDM_FILE_PRINT", "IDM_FILE_PRINTNOW"]) }
+        case "IDM_SEARCH_FIND":
+            return {
+                menue(["IDM_SEARCH_FIND", "IDM_SEARCH_REPLACE", "IDM_SEARCH_FINDINFILES", "IDM_SEARCH_MARK", nil,
+                       "IDM_SEARCH_FINDINCREMENT", "IDM_SEARCH_FINDNEXT", "IDM_SEARCH_FINDPREV", nil, "IDM_SEARCH_GOTOLINE"])
+            }
+        case "IDM_VIEW_ZOOMIN": return { menue(["IDM_VIEW_ZOOMIN", "IDM_VIEW_ZOOMOUT", "IDM_VIEW_ZOOMRESTORE"]) }
+        case "IDM_VIEW_ALL_CHARACTERS":
+            return { menue(["IDM_VIEW_TAB_SPACE", "IDM_VIEW_EOL", "IDM_VIEW_ALL_CHARACTERS", nil, "IDM_VIEW_INDENT_GUIDE", "IDM_VIEW_WRAP_SYMBOL"]) }
+        case "IDM_VIEW_FUNC_LIST":
+            return { menue(["IDM_VIEW_FUNC_LIST", "IDM_VIEW_DOC_MAP", "IDM_VIEW_DOCLIST", "IDM_VIEW_FILEBROWSER"]) }
+        case "IDM_MACRO_PLAYBACKRECORDEDMACRO":
+            return {
+                let m = menue(["IDM_MACRO_PLAYBACKRECORDEDMACRO", "IDM_MACRO_RUNMULTIMACRODLG"])
+                let gesicherte = Makros.gemeinsam.gesicherte
+                if !gesicherte.isEmpty {
+                    m.addItem(.separator())
+                    let kopf = NSMenuItem(title: "Gesicherte Makros", action: nil, keyEquivalent: "")
+                    kopf.isEnabled = false
+                    m.addItem(kopf)
+                    for makro in gesicherte {
+                        let i = NSMenuItem(title: makro.name, action: #selector(MakroMenue.spiele(_:)), keyEquivalent: "")
+                        i.target = MakroMenue.gemeinsam
+                        i.representedObject = makro.name
+                        m.addItem(i)
+                    }
+                }
+                return m
+            }
+        default: return nil
+        }
+    }
+
+    // MARK: Rechtsklick: Symbolsatz wie in den Einstellungen von Notepad++
+
+    override func menu(for event: NSEvent) -> NSMenu? {
+        let m = NSMenu()
+        let kopf = NSMenuItem(title: "Symbole der Werkzeugleiste", action: nil, keyEquivalent: "")
+        kopf.isEnabled = false
+        m.addItem(kopf)
+        for (satz, titel) in [("standard", "Klein (klassisch)"), ("fluent", "Fluent UI: klein"), ("fluentGefuellt", "Fluent UI: klein, gefüllt")] {
+            let i = NSMenuItem(title: titel, action: #selector(symbolsatzGewaehlt(_:)), keyEquivalent: "")
+            i.target = self
+            i.representedObject = satz
+            i.state = Einstellungen.symbolsatz == satz ? .on : .off
+            m.addItem(i)
+        }
+        return m
+    }
+
+    @objc private func symbolsatzGewaehlt(_ sender: NSMenuItem) {
+        guard let satz = sender.representedObject as? String else { return }
+        Einstellungen.symbolsatz = satz
+        aktualisiere()
+    }
 
     func aktualisiere() {
         let dunkel = Hauptfenster.istDunkel
@@ -101,18 +199,24 @@ final class Werkzeugleiste: NSView {
     final class Knopf: NSControl {
         let symbol: String
         let befehl: String
+        /// Mit ▾: was rechts daneben aufklappt.
+        let aufklappen: (() -> NSMenu)?
         var bild: NSImage?
         var bildAus: NSImage?
         var moeglich = true
         var an = false
         private var ueber = false
         private var unten = false
+        private var pfeilOffen = false
+        static let pfeilBreite: CGFloat = 11
 
-        init(symbol: String, befehl: String) {
+        init(symbol: String, befehl: String, aufklappen: (() -> NSMenu)? = nil) {
             self.symbol = symbol
             self.befehl = befehl
-            super.init(frame: NSRect(x: 0, y: 0, width: 23, height: 22))
-            widthAnchor.constraint(equalToConstant: 23).isActive = true
+            self.aufklappen = aufklappen
+            let breite = 23 + (aufklappen == nil ? 0 : Self.pfeilBreite)
+            super.init(frame: NSRect(x: 0, y: 0, width: breite, height: 22))
+            widthAnchor.constraint(equalToConstant: breite).isActive = true
             heightAnchor.constraint(equalToConstant: 22).isActive = true
             setAccessibilityRole(.button)
         }
@@ -126,10 +230,35 @@ final class Werkzeugleiste: NSView {
             addTrackingArea(NSTrackingArea(rect: bounds, options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect], owner: self))
         }
 
-        override func mouseEntered(with event: NSEvent) { ueber = true; needsDisplay = true }
-        override func mouseExited(with event: NSEvent) { ueber = false; needsDisplay = true }
+        override func mouseEntered(with event: NSEvent) {
+            ueber = true
+            needsDisplay = true
+            Hinweis.gemeinsam.plane(
+                fuer: self, titel: Oberflaeche.gemeinsam.titel(befehl).replacingOccurrences(of: " …", with: ""),
+                kuerzel: Beschreibung.kuerzel(befehl), text: Beschreibung.text(befehl))
+        }
+
+        override func mouseExited(with event: NSEvent) {
+            ueber = false
+            needsDisplay = true
+            Hinweis.gemeinsam.verberge()
+        }
+
+        private var knopfBreite: CGFloat { bounds.width - (aufklappen == nil ? 0 : Self.pfeilBreite) }
 
         override func mouseDown(with event: NSEvent) {
+            Hinweis.gemeinsam.verberge()
+            let punkt = convert(event.locationInWindow, from: nil)
+            if let aufklappen, punkt.x >= knopfBreite {
+                // Das Menü klappt unter dem ganzen Knopf auf, bündig links.
+                pfeilOffen = true
+                needsDisplay = true
+                aufklappen().popUp(positioning: nil, at: NSPoint(x: 0, y: -3), in: self)
+                pfeilOffen = false
+                ueber = bounds.contains(convert(window?.mouseLocationOutsideOfEventStream ?? .zero, from: nil))
+                needsDisplay = true
+                return
+            }
             guard moeglich else { return }
             unten = true
             needsDisplay = true
@@ -139,7 +268,8 @@ final class Werkzeugleiste: NSView {
             guard unten else { return }
             unten = false
             needsDisplay = true
-            if bounds.contains(convert(event.locationInWindow, from: nil)), let action, let target {
+            let punkt = convert(event.locationInWindow, from: nil)
+            if bounds.contains(punkt), punkt.x < knopfBreite, let action, let target {
                 NSApp.sendAction(action, to: target, from: self)
             }
         }
@@ -147,7 +277,7 @@ final class Werkzeugleiste: NSView {
         override func draw(_ dirtyRect: NSRect) {
             let dunkel = Hauptfenster.istDunkel
             let kasten = bounds.insetBy(dx: 0.5, dy: 0.5)
-            if moeglich, unten || an || ueber {
+            if pfeilOffen || moeglich && (unten || an || ueber) {
                 let (fuell, rand): (Int, Int) = unten
                     ? (dunkel ? (0x3D5A73, 0x5A8AB0) : (0xCCE8FF, 0x99D1FF))
                     : an ? (dunkel ? (0x354A5E, 0x4F7393) : (0xCCE8FF, 0x99D1FF))
@@ -156,10 +286,24 @@ final class Werkzeugleiste: NSView {
                 kasten.fill()
                 NSColor(rgb: rand).setStroke()
                 NSBezierPath(rect: kasten).stroke()
+                if aufklappen != nil {
+                    NSBezierPath.strokeLine(from: NSPoint(x: knopfBreite + 0.5, y: 2), to: NSPoint(x: knopfBreite + 0.5, y: bounds.height - 2))
+                }
+            }
+            if aufklappen != nil {
+                // Das ▾ wie in Windows-Werkzeugleisten: ein kleines gefülltes Dreieck.
+                let mitte = NSPoint(x: knopfBreite + Self.pfeilBreite / 2, y: bounds.midY)
+                let pfeil = NSBezierPath()
+                pfeil.move(to: NSPoint(x: mitte.x - 3, y: mitte.y + 1.5))
+                pfeil.line(to: NSPoint(x: mitte.x + 3, y: mitte.y + 1.5))
+                pfeil.line(to: NSPoint(x: mitte.x, y: mitte.y - 1.5))
+                pfeil.close()
+                (dunkel ? NSColor(rgb: 0xC8C8C8) : NSColor(rgb: 0x404040)).setFill()
+                pfeil.fill()
             }
             let b = (!moeglich ? bildAus : nil) ?? bild
             b?.draw(
-                in: NSRect(x: (bounds.width - 16) / 2, y: (bounds.height - 16) / 2, width: 16, height: 16),
+                in: NSRect(x: (knopfBreite - 16) / 2, y: (bounds.height - 16) / 2, width: 16, height: 16),
                 from: .zero, operation: .sourceOver, fraction: moeglich || bildAus != nil ? 1 : 0.35)
         }
     }

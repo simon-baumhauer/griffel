@@ -162,7 +162,7 @@ final class MakroMenue: NSObject, NSMenuDelegate {
         menu.addItem(kopf)
     }
 
-    @objc private func spiele(_ sender: NSMenuItem) {
+    @objc func spiele(_ sender: NSMenuItem) {
         guard let name = sender.representedObject as? String, let e = Hauptfenster.gemeinsam.aktiv,
             let makro = Makros.gemeinsam.gesicherte.first(where: { $0.name == name })
         else { return }
