@@ -1,4 +1,17 @@
-Ein Texteditor für den Mac nach dem Vorbild von Notepad++ – Scintilla und Lexilla wie dort, die Oberfläche neu in Swift. Für Apple Silicon und Intel, ab macOS 13.
+Ein Texteditor für den Mac nach dem Vorbild von Notepad++ – Scintilla und Lexilla wie dort, die Oberfläche in Swift nachgebaut. Für Apple Silicon und Intel, ab macOS 13.
+
+## Neu in 1.1.0
+
+Die Oberfläche sieht jetzt aus wie die von Notepad++; nur Fensterrahmen und Menüleiste oben sind vom Mac.
+
+- Ein Fenster für alle Dateien, Werkzeugleiste mit den Original-Symbolen, Tableiste mit Heften und Schliessen
+- Alle Menüs und Kürzel von Notepad++ mit den deutschen Texten; was Kladde noch nicht kann, steht ausgegraut
+- Suchen-Dialog mit den Reitern Suchen, Ersetzen, In Dateien suchen und Hervorheben; Suchergebnis unten im Fenster; inkrementelle Suche
+- Seitenleisten: Dokumentenliste, Miniaturansicht, Ordner als Arbeitsbereich, Funktionsliste
+- Statusleiste wie in Notepad++
+- Neu: Drucken, synchrones Scrollen, Datei überwachen, Hashwerte, «Ausführen …», Sitzungen als Datei
+
+Die Tastenkürzel sind jetzt die von Notepad++ (⌘ statt Ctrl, ⌥ statt Alt); einige weichen darum von 1.0 ab, etwa Ersetzen (⌃H) und Gehe zu (⌘G).
 
 ## Installieren
 
