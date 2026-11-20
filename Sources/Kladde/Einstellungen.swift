@@ -100,6 +100,11 @@ enum Einstellungen {
         set { ablage.set(newValue, forKey: "DokumentenlisteSichtbar"); melde() }
     }
 
+    static var jsonViewerSichtbar: Bool {
+        get { ablage.bool(forKey: "JSONViewerSichtbar") }
+        set { ablage.set(newValue, forKey: "JSONViewerSichtbar"); melde() }
+    }
+
     static var miniaturansichtSichtbar: Bool {
         get { ablage.bool(forKey: "MiniaturansichtSichtbar") }
         set { ablage.set(newValue, forKey: "MiniaturansichtSichtbar"); melde() }

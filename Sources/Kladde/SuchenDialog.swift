@@ -3,20 +3,18 @@ import AppKit
 /// Der Dialog «Suchen und ersetzen» von Notepad++, gebaut aus FindReplaceDlg.rc:
 /// gleiche Bedienelemente an gleicher Stelle (Dialogeinheiten umgerechnet),
 /// Reiter Suchen, Ersetzen, In Dateien suchen, Hervorheben; unten die Statuszeile.
-final class SuchenDialog: NSWindowController, NSWindowDelegate, NSTabViewDelegate, NSComboBoxDelegate {
+final class SuchenDialog: NSWindowController, NSWindowDelegate {
     enum Reiter: Int { case suchen, ersetzen, inDateien, markieren }
 
     static let gemeinsam = SuchenDialog()
 
-    private let reiterLeiste = NSTabView()
-    private let inhalt = Flaeche()
+    private let reiterLeiste = WinReiter()
+    private let inhalt = WinFlaeche()
     private let status = NSTextField(labelWithString: "")
     private var elemente: [String: NSView] = [:]
     private var reiter = Reiter.suchen
     private var schliessenOrt: NSPoint?
     private let ablage = UserDefaults.standard
-
-    private final class Flaeche: NSView { override var isFlipped: Bool { true } }
 
     // Dialogeinheiten → Punkte (MS Shell Dlg 8 auf dem Mac etwas grösser).
     private static let sx: CGFloat = 1.62
@@ -50,7 +48,7 @@ final class SuchenDialog: NSWindowController, NSWindowDelegate, NSTabViewDelegat
     private init() {
         let d = Oberflaeche.gemeinsam.suchen
         let breite = CGFloat(d.groesse[0]) * Self.sx
-        let hoehe = (CGFloat(d.groesse[1]) - Self.oben) * Self.sy + 70
+        let hoehe = (CGFloat(d.groesse[1]) - Self.oben) * Self.sy + 40
         let fenster = NSPanel(
             contentRect: NSRect(x: 0, y: 0, width: breite + 16, height: hoehe),
             styleMask: [.titled, .closable], backing: .buffered, defer: true)
@@ -61,32 +59,20 @@ final class SuchenDialog: NSWindowController, NSWindowDelegate, NSTabViewDelegat
         super.init(window: fenster)
         fenster.delegate = self
 
+        // Wie in Notepad++: Reiter oben links, darunter die Fläche, unten die Statuszeile.
         let titel = d.titel
-        for (r, schluessel) in [(Reiter.suchen, "titleFind"), (.ersetzen, "titleReplace"), (.inDateien, "titleFindInFiles"), (.markieren, "titleMark")] {
-            let item = NSTabViewItem(identifier: r.rawValue)
-            item.label = (titel[schluessel] ?? nil) ?? schluessel
-            item.view = NSView()
-            reiterLeiste.addTabViewItem(item)
-        }
-        reiterLeiste.delegate = self
-        reiterLeiste.translatesAutoresizingMaskIntoConstraints = false
-        status.translatesAutoresizingMaskIntoConstraints = false
-        status.font = .systemFont(ofSize: 11)
+        reiterLeiste.titel = ["titleFind", "titleReplace", "titleFindInFiles", "titleMark"].map { (titel[$0] ?? nil) ?? $0 }
+        reiterLeiste.gewechselt = { [weak self] i in self?.wechsle(Reiter(rawValue: i) ?? .suchen) }
+        let wurzel = WinFlaeche(frame: NSRect(x: 0, y: 0, width: breite + 16, height: hoehe))
+        reiterLeiste.frame = NSRect(x: 0, y: 4, width: breite + 16, height: 26)
+        reiterLeiste.autoresizingMask = [.width]
+        inhalt.frame = NSRect(x: 8, y: 34, width: breite, height: hoehe - 60)
+        status.frame = NSRect(x: 12, y: hoehe - 26, width: breite - 8, height: 18)
+        status.font = Win.schrift
         status.lineBreakMode = .byTruncatingTail
-        let wurzel = NSView()
-        wurzel.addSubview(reiterLeiste)
-        wurzel.addSubview(status)
-        NSLayoutConstraint.activate([
-            reiterLeiste.topAnchor.constraint(equalTo: wurzel.topAnchor, constant: 6),
-            reiterLeiste.leadingAnchor.constraint(equalTo: wurzel.leadingAnchor, constant: 4),
-            reiterLeiste.trailingAnchor.constraint(equalTo: wurzel.trailingAnchor, constant: -4),
-            status.topAnchor.constraint(equalTo: reiterLeiste.bottomAnchor, constant: 2),
-            status.leadingAnchor.constraint(equalTo: wurzel.leadingAnchor, constant: 10),
-            status.trailingAnchor.constraint(equalTo: wurzel.trailingAnchor, constant: -10),
-            status.bottomAnchor.constraint(equalTo: wurzel.bottomAnchor, constant: -4),
-        ])
+        for v in [reiterLeiste, inhalt, status] as [NSView] { wurzel.addSubview(v) }
         fenster.contentView = wurzel
-        inhalt.frame = NSRect(x: 0, y: 0, width: breite, height: hoehe - 70)
+        fenster.backgroundColor = Win.grund
         baueElemente(d.elemente)
         uebernehme()
         wechsle(.suchen)
@@ -115,13 +101,10 @@ final class SuchenDialog: NSWindowController, NSWindowDelegate, NSTabViewDelegat
             var ansicht: NSView
             switch e.art {
             case "RTEXT", "LTEXT":
-                let f = NSTextField(labelWithString: text)
-                f.alignment = e.art == "RTEXT" ? .right : .left
-                f.font = .systemFont(ofSize: 12)
-                f.lineBreakMode = .byClipping
+                let f = WinText(text, rechts: e.art == "RTEXT")
                 if e.id == "IDC_FIF_FILTER_TIP_STATIC" {
                     f.toolTip = "Muster durch Leerzeichen getrennt, etwa «*.swift *.md». Mit «!» ausschliessen: «!*.min.js», Ordner «!\\build»."
-                    f.textColor = .linkColor
+                    f.textColor = Win.akzent
                 }
                 ansicht = f
                 // Rechtsbündige Beschriftungen dürfen nach links wachsen (Mac-Schrift ist breiter).
@@ -129,79 +112,46 @@ final class SuchenDialog: NSWindowController, NSWindowDelegate, NSTabViewDelegat
                 if e.art == "RTEXT" { r = NSRect(x: max(2, r.minX - 12), y: r.minY, width: r.maxX - max(2, r.minX - 12), height: r.height) }
                 ansicht.frame = r
             case "COMBOBOX":
-                let c = NSComboBox()
-                c.font = .monospacedSystemFont(ofSize: 12, weight: .regular)
-                c.completes = false
-                c.delegate = self
-                c.numberOfVisibleItems = 10
+                let c = WinKombi()
+                c.geaendert = { [weak self] in self?.uebertrage() }
                 ansicht = c
-                ansicht.frame = rechteck(e, hoehe: 24).offsetBy(dx: 0, dy: -3)
-            case "PUSHBUTTON":
-                let k = NSButton(title: text, target: self, action: #selector(gedrueckt(_:)))
-                if e.h > 15 {
-                    k.bezelStyle = .regularSquare
-                    (k.cell as? NSButtonCell)?.wraps = true
-                    (k.cell as? NSButtonCell)?.lineBreakMode = .byWordWrapping
-                    k.frame = rechteck(e)
-                } else {
-                    k.bezelStyle = .rounded
-                    k.frame = rechteck(e, hoehe: 28).offsetBy(dx: -3, dy: -3).insetBy(dx: -3, dy: 0)
-                }
-                if text.isEmpty, e.id == "IDD_FINDREPLACE_SWAP_BUTTON" { k.title = "⇅" }
-                k.font = .systemFont(ofSize: e.h > 15 ? 11 : 12)
+                ansicht.frame = rechteck(e, hoehe: 23).offsetBy(dx: 0, dy: -3)
+            case "PUSHBUTTON", "SPLITBUTTON":
+                let k = WinKnopf()
+                k.title = e.id == "IDD_FINDREPLACE_SWAP_BUTTON" || e.art == "SPLITBUTTON" ? "⇅" : text
+                k.target = self
+                k.action = e.id == "IDD_FINDREPLACE_SWAP_BUTTON" || e.art == "SPLITBUTTON" ? #selector(tauschen) : #selector(gedrueckt(_:))
+                k.isBordered = false
+                if k.action == #selector(tauschen) { k.toolTip = "Suchen und Ersetzen vertauschen" }
+                // Windows-Knöpfe sind 23 px hoch (14 Dialogeinheiten); zweizeilige höher.
+                k.frame = e.h > 15 ? rechteck(e) : rechteck(e, hoehe: 25).offsetBy(dx: 0, dy: -1)
                 ansicht = k
             case "CHECKBOX":
-                let k = NSButton(checkboxWithTitle: text, target: self, action: #selector(optionGeaendert))
-                ansicht = k
+                ansicht = WinKaestchen(titel: text, rund: false, target: self, action: #selector(optionGeaendert))
                 ansicht.frame = rechteck(e, hoehe: 18).offsetBy(dx: 0, dy: -2)
             case "RADIO":
-                let k = NSButton(radioButtonWithTitle: text, target: self, action: #selector(radioGeaendert(_:)))
-                ansicht = k
+                // macOS koppelt Optionsfelder mit gleicher Aktion; die beiden Gruppen brauchen darum je eine eigene.
+                let transparenz = e.id.hasPrefix("IDC_TRANSPARENT")
+                ansicht = WinKaestchen(titel: text, rund: true, target: self,
+                                       action: transparenz ? #selector(transparenzGeaendert(_:)) : #selector(radioGeaendert(_:)))
                 ansicht.frame = rechteck(e, hoehe: 18).offsetBy(dx: 0, dy: -2)
             case "GROUPBOX":
-                // Ein Windows-Gruppenrahmen: dünne Linie, Titel auf der oberen Kante.
-                let b = NSBox()
-                b.boxType = .custom
-                b.borderColor = .separatorColor
-                b.fillColor = .clear
-                b.borderWidth = 1
-                b.cornerRadius = 3
-                b.titlePosition = .noTitle
-                ansicht = b
-                ansicht.frame = rechteck(e).insetBy(dx: -2, dy: 0).offsetBy(dx: 0, dy: 4)
-                if !text.isEmpty {
-                    let t = NSTextField(labelWithString: text)
-                    t.font = .systemFont(ofSize: 11)
-                    t.drawsBackground = true
-                    t.backgroundColor = .windowBackgroundColor
-                    t.sizeToFit()
-                    t.frame.origin = NSPoint(x: ansicht.frame.minX + 8, y: ansicht.frame.minY - t.frame.height / 2)
-                    t.identifier = NSUserInterfaceItemIdentifier(e.id + ".titel")
-                    inhalt.addSubview(t)
-                    elemente[e.id + ".titel"] = t
-                }
-            case "SPLITBUTTON":
-                let k = NSButton(title: "⇅", target: self, action: #selector(tauschen))
-                k.bezelStyle = .rounded
-                k.toolTip = Oberflaeche.gemeinsam.suchen.elemente.isEmpty ? nil : "Suchen mit Ersetzen vertauschen"
-                ansicht = k
-                ansicht.frame = rechteck(e, hoehe: 26)
+                ansicht = WinGruppe(titel: text)
+                ansicht.frame = rechteck(e).insetBy(dx: -2, dy: 0).offsetBy(dx: 0, dy: -2)
             case "SLIDER":
-                let s = NSSlider(value: 80, minValue: 20, maxValue: 100, target: self, action: #selector(optionGeaendert))
-                s.controlSize = .small
+                let s = WinRegler()
+                s.target = self
+                s.action = #selector(optionGeaendert)
                 ansicht = s
-                ansicht.frame = rechteck(e, hoehe: 18)
+                ansicht.frame = rechteck(e, hoehe: 22)
             default:
                 continue
             }
             ansicht.identifier = NSUserInterfaceItemIdentifier(e.id)
-            if let k = ansicht as? NSButton, e.art == "PUSHBUTTON" || e.art == "SPLITBUTTON" { k.identifier = .init(e.id) }
             // Gruppenrahmen hinter die Elemente.
             if e.art == "GROUPBOX" { inhalt.addSubview(ansicht, positioned: .below, relativeTo: nil) } else { inhalt.addSubview(ansicht) }
             elemente[e.id] = ansicht
         }
-        (elemente["IDD_FINDREPLACE_SWAP_BUTTON"] as? NSButton)?.action = #selector(tauschen)
-        (elemente["IDD_FINDREPLACE_SWAP_BUTTON"] as? NSButton)?.title = "⇅"
     }
 
     // MARK: Zeigen
@@ -213,23 +163,27 @@ final class SuchenDialog: NSWindowController, NSWindowDelegate, NSTabViewDelegat
             o.text = text
             SuchZustand.gemeinsam.optionen = o
         }
-        if let ordner { (elemente["IDD_FINDINFILES_DIR_COMBO"] as? NSComboBox)?.stringValue = ordner }
+        if let ordner { kombi("IDD_FINDINFILES_DIR_COMBO")?.stringValue = ordner }
         uebernehme()
         wechsle(r)
         if window?.isVisible != true, let haupt = Hauptfenster.gemeinsam.window {
             let f = window!.frame
             window?.setFrameOrigin(NSPoint(x: haupt.frame.midX - f.width / 2, y: haupt.frame.midY - f.height / 2 + 60))
         }
+        // Hell oder dunkel kann sich seit dem letzten Mal geändert haben.
+        window?.backgroundColor = Win.grund
+        status.textColor = Win.text
+        for v in elemente.values { v.needsDisplay = true; (v as? WinText)?.textColor = v.identifier?.rawValue == "IDC_FIF_FILTER_TIP_STATIC" ? Win.akzent : Win.text }
+        window?.contentView?.needsDisplay = true
+        reiterLeiste.needsDisplay = true
         showWindow(nil)
-        window?.makeFirstResponder(elemente["IDFINDWHAT"])
+        window?.makeFirstResponder(kombi("IDFINDWHAT")?.feld)
+        kombi("IDFINDWHAT")?.feld.selectText(nil)
     }
 
     private func wechsle(_ r: Reiter) {
         reiter = r
-        if reiterLeiste.selectedTabViewItem.map { reiterLeiste.indexOfTabViewItem($0) } != r.rawValue { reiterLeiste.selectTabViewItem(at: r.rawValue) }
-        let item = reiterLeiste.tabViewItem(at: r.rawValue)
-        inhalt.removeFromSuperview()
-        item.view?.addSubview(inhalt)
+        reiterLeiste.gewaehlt = r.rawValue
         // Wie Notepad++: Im Reiter «In Dateien suchen» rückt «Schließen» unter «Ersetzen in Dateien».
         if let schliessen = elemente["IDCANCEL"] {
             if schliessenOrt == nil { schliessenOrt = schliessen.frame.origin }
@@ -243,18 +197,18 @@ final class SuchenDialog: NSWindowController, NSWindowDelegate, NSTabViewDelegat
         for (id, v) in elemente { v.isHidden = !sichtbar.contains(id.replacingOccurrences(of: ".titel", with: "")) }
         let titel = Oberflaeche.gemeinsam.suchen.titel
         window?.title = (titel[["titleFind", "titleReplace", "titleFindInFiles", "titleMark"][r.rawValue]] ?? nil) ?? ""
-        if let k = elemente[Self.standardknopf[r] ?? ""] as? NSButton { window?.defaultButtonCell = k.cell as? NSButtonCell }
+        // Der Standardknopf hat den blauen Rand und reagiert auf ↩.
+        for case let k as WinKnopf in elemente.values {
+            k.istStandard = elemente[Self.standardknopf[r] ?? ""] === k
+            k.keyEquivalent = k.istStandard ? "\r" : ""
+        }
+        (elemente["IDCANCEL"] as? WinKnopf)?.keyEquivalent = "\u{1b}"
         aktualisiereRegexAbhaengig()
-    }
-
-    func tabView(_ tabView: NSTabView, didSelect tabViewItem: NSTabViewItem?) {
-        guard let i = tabViewItem?.identifier as? Int, let r = Reiter(rawValue: i), r != reiter else { return }
-        wechsle(r)
     }
 
     // MARK: Zustand
 
-    private func kombi(_ id: String) -> NSComboBox? { elemente[id] as? NSComboBox }
+    private func kombi(_ id: String) -> WinKombi? { elemente[id] as? WinKombi }
     private func haken(_ id: String) -> Bool { (elemente[id] as? NSButton)?.state == .on }
     private func setzeHaken(_ id: String, _ an: Bool) { (elemente[id] as? NSButton)?.state = an ? .on : .off }
 
@@ -330,6 +284,8 @@ final class SuchenDialog: NSWindowController, NSWindowDelegate, NSTabViewDelegat
         aktualisiereRegexAbhaengig()
     }
 
+    @objc private func transparenzGeaendert(_ sender: NSButton) { radioGeaendert(sender) }
+
     @objc private func radioGeaendert(_ sender: NSButton) {
         let gruppen = [["IDNORMAL", "IDEXTENDED", "IDREGEXP"], ["IDC_TRANSPARENT_LOSSFOCUS_RADIO", "IDC_TRANSPARENT_ALWAYS_RADIO"]]
         guard let id = sender.identifier?.rawValue, let gruppe = gruppen.first(where: { $0.contains(id) }) else { return }
@@ -337,8 +293,6 @@ final class SuchenDialog: NSWindowController, NSWindowDelegate, NSTabViewDelegat
         optionGeaendert()
     }
 
-    func controlTextDidChange(_ obj: Notification) { uebertrage() }
-    func comboBoxSelectionDidChange(_ notification: Notification) { DispatchQueue.main.async { self.uebertrage() } }
 
     @objc private func tauschen() {
         guard let a = kombi("IDFINDWHAT"), let b = kombi("IDREPLACEWITH") else { return }
@@ -350,7 +304,7 @@ final class SuchenDialog: NSWindowController, NSWindowDelegate, NSTabViewDelegat
 
     private func setzeDurchsicht(aktiv: Bool) {
         guard haken("IDC_TRANSPARENT_CHECK") else { window?.alphaValue = 1; return }
-        let wert = CGFloat((elemente["IDC_PERCENTAGE_SLIDER"] as? NSSlider)?.doubleValue ?? 80) / 100
+        let wert = CGFloat((elemente["IDC_PERCENTAGE_SLIDER"] as? WinRegler)?.wert ?? 80) / 100
         window?.alphaValue = haken("IDC_TRANSPARENT_ALWAYS_RADIO") || !aktiv ? wert : 1
     }
 
@@ -361,7 +315,8 @@ final class SuchenDialog: NSWindowController, NSWindowDelegate, NSTabViewDelegat
 
     func zeigeStatus(_ antwort: Suchaktion.Antwort) {
         status.stringValue = antwort.text
-        status.textColor = antwort.fehler ? .systemRed : .systemBlue
+        // Wie Notepad++: rot für «nicht gefunden», blau für Erfolg.
+        status.textColor = antwort.fehler ? NSColor(rgb: Win.dunkel ? 0xFF6B6B : 0xFF0000) : NSColor(rgb: Win.dunkel ? 0x4CC2FF : 0x0000FF)
     }
 
     @objc private func gedrueckt(_ sender: NSButton) {

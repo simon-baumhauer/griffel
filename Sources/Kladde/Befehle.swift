@@ -666,6 +666,11 @@ enum Befehlsmenue {
                 eintraege(m.eintraege).forEach(menue.addItem)
                 menue.delegate = MakroMenue.gemeinsam
                 MakroMenue.gemeinsam.festeEintraege = menue.items.count
+            case "Plugins":
+                // Die eingebauten Plugins zuerst, dann die Einträge von Notepad++.
+                Plugins.gemeinsam.menueEintraege().forEach(menue.addItem)
+                menue.addItem(.separator())
+                eintraege(m.eintraege).forEach(menue.addItem)
             case "Window":
                 eintraege(m.eintraege).forEach(menue.addItem)
                 menue.delegate = FensterMenue.gemeinsam

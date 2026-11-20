@@ -62,6 +62,9 @@ enum Probe {
         case "etappe5":
             etappe5(ordner: ordner, bericht: { bericht.append($0) }, fertig: schliesse)
             return
+        case "plugins":
+            plugins(ordner: ordner, bericht: { bericht.append($0) }, fertig: schliesse)
+            return
         case "oberflaeche":
             oberflaeche(ordner: ordner, bericht: { bericht.append($0) }, fertig: schliesse)
             return
@@ -236,6 +239,12 @@ enum Probe {
                 SuchenDialog.gemeinsam.zeige(r)
                 if let w = SuchenDialog.gemeinsam.window { bild(von: w, nach: ordner.appendingPathComponent("dialog-\(name).png")) }
             }
+            NSApp.appearance = NSAppearance(named: .darkAqua)
+            SuchenDialog.gemeinsam.zeige(.ersetzen)
+        }
+        schritt {
+            if let w = SuchenDialog.gemeinsam.window { bild(von: w, nach: ordner.appendingPathComponent("dialog-dunkel.png")) }
+            NSApp.appearance = nil
             SuchenDialog.gemeinsam.close()
             fenster.makeKeyAndOrderFront(nil)
         }
@@ -588,6 +597,62 @@ enum Probe {
             guard i < schritte.count else { return fertig() }
             schritte[i]()
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { fuehreAus(i + 1) }
+        }
+        fuehreAus(0)
+    }
+
+    /// JSON Viewer, XML Tools, MIME Tools und Converter am vordersten Dokument.
+    private static func plugins(ordner: URL, bericht: @escaping (String) -> Void, fertig: @escaping () -> Void) {
+        let h = Hauptfenster.gemeinsam
+        guard let fenster = h.window, let e = h.editor else { return fertig() }
+        let p = Plugins.gemeinsam
+        func text() -> String { String(decoding: e.utf8, as: UTF8.self) }
+        func setze(_ t: String) { e.ersetze([(0..<e.laenge, t)]); e.waehleAus(0..<0) }
+        var schritte: [() -> Void] = []
+        schritte.append {
+            setze(#"{"name":"Kladde","version":1.20,"plugins":["JSON Viewer","XML Tools"],"frei":true,"leer":{}}"#)
+            p.fuehreAus("json.format")
+            bericht("json format:\n" + text())
+            p.fuehreAus("json.viewer")
+        }
+        schritte.append {}
+        schritte.append {
+            bericht("json viewer zeilen: \(JSONAnsicht.gemeinsam.anzahlZeilen), sprache \(e.sprache.name)")
+            bild(von: fenster, nach: ordner.appendingPathComponent("json-viewer.png"))
+            p.fuehreAus("json.compress")
+            bericht("json compress: " + text())
+            e.nachricht(SCI_UNDO)
+            bericht("rückgängig in einem Schritt: \(text().contains("\n"))")
+            setze("{\n  \"a\": 1,\n  \"b\" 2\n}")
+            p.fuehreAus("json.validate")
+            bericht("json fehler: marke bei \(e.auswahl.lowerBound), zeile \(e.aktuelleZeile)")
+        }
+        schritte.append {
+            fenster.attachedSheet.map { fenster.endSheet($0) }
+            setze(#"<?xml version="1.0"?><liste><eintrag id="1">Eins</eintrag><eintrag id="2"/></liste>"#)
+            p.fuehreAus("xml.pretty")
+            bericht("xml pretty:\n" + text())
+            p.fuehreAus("xml.linearize")
+            bericht("xml linear: " + text())
+            setze("Grüezi Welt")
+            e.waehleAus(0..<e.laenge)
+            p.fuehreAus("mime.base64"); bericht("base64: " + text())
+            e.waehleAus(0..<e.laenge)
+            p.fuehreAus("mime.unbase64"); bericht("zurück: " + text())
+            e.waehleAus(0..<e.laenge)
+            p.fuehreAus("conv.hex"); bericht("hex: " + text())
+            e.waehleAus(0..<e.laenge)
+            p.fuehreAus("conv.unhex"); bericht("zurück: " + text())
+            let plugins = NSApp.mainMenu?.items.first { $0.title == "Plugins" }?.submenu
+            bericht("menü plugins: " + (plugins?.items.map { $0.isSeparatorItem ? "—" : $0.title + ($0.submenu.map { " [" + $0.items.map(\.title).joined(separator: ", ") + "]" } ?? "") }.joined(separator: " | ") ?? "fehlt"))
+            Einstellungen.jsonViewerSichtbar = false
+            setze("")
+            h.aktivesDokument?.updateChangeCount(.changeCleared)
+        }
+        func fuehreAus(_ i: Int) {
+            guard i < schritte.count else { return fertig() }
+            schritte[i]()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { fuehreAus(i + 1) }
         }
         fuehreAus(0)
     }

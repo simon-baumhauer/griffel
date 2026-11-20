@@ -49,6 +49,13 @@ und Blockkommentar umschalten nach den Zeichen der Sprache; Spalteneditor für T
 mehrere Einfügemarken und Rechteckauswahl (⌥ + Ziehen); Lesezeichen; Makros aufnehmen, abspielen,
 mehrfach oder bis zum Ende, unter Namen sichern.
 
+**Plugins, eingebaut.** Was man in Notepad++ nachinstalliert, steht hier schon im Menü «Plugins», unter
+den Namen der Plugins: **JSON Viewer** (Format JSON, Compress JSON, Validate JSON und die Baumansicht
+rechts; Reihenfolge, Zahlen und Texte bleiben genau erhalten), **XML Tools** (Pretty print, Linarize
+XML, Check XML syntax now), **MIME Tools** (Base64 und URL kodieren und dekodieren) und **Converter**
+(ASCII ↔ HEX). Alles wirkt auf die Auswahl oder ohne Auswahl auf das ganze Dokument, ein Fehler springt
+an seine Stelle, und ⌘Z nimmt es in einem Schritt zurück.
+
 **Seitenleisten und Hilfen.** Funktionsliste (für 44 Sprachen), Dokumentenliste, Miniaturansicht und
 Ordner als Arbeitsbereich. Vorschläge beim Tippen aus dem Text und den Wortlisten von Notepad++
 (34 Sprachen) samt Aufrufhilfe, Gehe zu Zeile, zur passenden Klammer, synchrones Scrollen der
@@ -116,7 +123,7 @@ swift test
 ```
 
 prüft Zeichensätze, Suchen und Ersetzen, die Suche im Ordner, die Zeilen- und Textwerkzeuge,
-Funktionsliste, Autovervollständigung und benutzerdefinierte Sprachen (51 Tests; einige lesen dazu die
+Funktionsliste, Autovervollständigung, benutzerdefinierte Sprachen und die eingebauten Plugins (57 Tests; einige lesen dazu die
 Dateien von Notepad++). Auf GitHub laufen sie bei jedem Push.
 
 Die App kann sich selbst prüfen und schreibt einen Bericht samt Bildern ihrer Fenster
@@ -157,7 +164,8 @@ die Sitzung nie an; erst «Sichern» schreibt sie.
   ICU nicht; für SQL, VHDL und NppExec gibt es darum keine Funktionsliste.
 - **Benutzerdefinierte Sprachen** lassen sich importieren (Format ab 2.0), aber nicht in einem Dialog
   bearbeiten.
-- **Plugins** gibt es keine: Die von Notepad++ sind Windows-Programme.
+- **Plugins** von Notepad++ laufen nicht: Sie sind Windows-Programme. JSON Viewer, XML Tools, MIME
+  Tools und Converter sind darum in Kladde nachgebaut (ohne ihren Code), weitere nicht.
 - **Menütexte.** Wo Notepad++ Windows meint, steht der Mac: «Finder» statt «Explorer», «Terminal»
   statt «Kommandozeile», «Kladde» statt «Notepad++».
 - **Schrift.** Wie im Farbschema (meist Courier New, sonst Menlo), oder fest in den Einstellungen.

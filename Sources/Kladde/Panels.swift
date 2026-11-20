@@ -93,6 +93,7 @@ final class Panels {
     private(set) lazy var dokumentenlisteLeiste = Seitenleiste(titel: o.texte["DocList.PanelTitle"] ?? "Dokumentenliste", inhalt: dokumentenliste)
     private(set) lazy var miniaturLeiste = Seitenleiste(titel: o.texte["DocumentMap.PanelTitle"] ?? "Miniaturansicht", inhalt: miniatur)
     private(set) lazy var arbeitsbereichLeiste = Seitenleiste(titel: o.texte["FolderAsWorkspace.PanelTitle"] ?? "Ordner als Arbeitsbereich", inhalt: arbeitsbereich)
+    private(set) lazy var jsonLeiste = Seitenleiste(titel: "JSON Viewer", inhalt: JSONAnsicht.gemeinsam)
     private var beobachter: NSObjectProtocol?
     private var geplant = false
 
@@ -107,6 +108,7 @@ final class Panels {
         dokumentenlisteLeiste.schliessen = { Einstellungen.dokumentenlisteSichtbar = false }
         miniaturLeiste.schliessen = { Einstellungen.miniaturansichtSichtbar = false }
         arbeitsbereichLeiste.schliessen = { Einstellungen.arbeitsbereichSichtbar = false }
+        jsonLeiste.schliessen = { Einstellungen.jsonViewerSichtbar = false }
         beobachter = NotificationCenter.default.addObserver(forName: Einstellungen.geaendert, object: nil, queue: .main) { [weak self] _ in
             self?.anwenden()
         }
@@ -119,6 +121,9 @@ final class Panels {
         f.linkerDock.zeige(dokumentenlisteLeiste, an: Einstellungen.dokumentenlisteSichtbar)
         f.rechterDock.zeige(miniaturLeiste, an: Einstellungen.miniaturansichtSichtbar)
         f.rechterDock.zeige(funktionslisteLeiste, an: Einstellungen.funktionslisteSichtbar)
+        let jsonVorher = f.rechterDock.enthaelt(jsonLeiste)
+        f.rechterDock.zeige(jsonLeiste, an: Einstellungen.jsonViewerSichtbar)
+        if Einstellungen.jsonViewerSichtbar, !jsonVorher { JSONAnsicht.gemeinsam.aktualisiere() }
         if Einstellungen.miniaturansichtSichtbar { miniatur.folge(f.editor) } else { miniatur.folge(nil) }
         dokumentGewechselt()
         dokumentenliste.aktualisiere()
@@ -150,7 +155,7 @@ final class Panels {
     func tabsGeaendert() { dokumentenliste.aktualisiere() }
 
     func darstellungGeaendert() {
-        for l in [funktionslisteLeiste, dokumentenlisteLeiste, miniaturLeiste, arbeitsbereichLeiste] { l.faerbe() }
+        for l in [funktionslisteLeiste, dokumentenlisteLeiste, miniaturLeiste, arbeitsbereichLeiste, jsonLeiste] { l.faerbe() }
         miniatur.darstellungGeaendert()
         Suchergebnisse.gemeinsam.darstellungGeaendert()
     }
