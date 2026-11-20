@@ -1,0 +1,35 @@
+# Ein Tag v1.2.3 baut das DMG (Apple Silicon und Intel) und legt es an ein
+# Release auf GitHub. Signiert ist die App nur lokal; siehe README «Installieren».
+name: Veröffentlichen
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  veroeffentlichen:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Version und Build-Nummer kommen aus Tags und Commits
+
+      - name: Editor-Kern bauen
+        run: ./scripts/extern-bauen.sh
+
+      - name: Tests
+        run: swift test
+
+      - name: DMG bauen
+        run: ./scripts/dmg-bauen.sh
+
+      - name: Release anlegen
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" build/Kladde-*.dmg \
+            --title "Kladde ${GITHUB_REF_NAME#v}" \
+            --notes-file .github/release-hinweis.md

@@ -41,6 +41,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         Suchergebnisse.gemeinsam.showWindow(nil)
     }
 
+    /// «Über Kladde» mit Herkunft und Lizenzen.
+    @objc func zeigeUeber(_ sender: Any?) {
+        let text = """
+            Ein Texteditor für den Mac nach dem Vorbild von Notepad++.
+
+            Editor-Kern: Scintilla und Lexilla von Neil Hodgson. Sprachen, Farbschemata, \
+            Funktionslisten und Autovervollständigung: aus Notepad++ von Don Ho und Mitwirkenden.
+
+            Freie Software unter der GPL v3.
+            github.com/simon-baumhauer/kladde
+            """
+        let absatz = NSMutableParagraphStyle()
+        absatz.alignment = .center
+        let mitwirkende = NSMutableAttributedString(string: text, attributes: [
+            .font: NSFont.systemFont(ofSize: NSFont.smallSystemFontSize),
+            .foregroundColor: NSColor.labelColor, .paragraphStyle: absatz,
+        ])
+        let link = (text as NSString).range(of: "github.com/simon-baumhauer/kladde")
+        mitwirkende.addAttribute(.link, value: URL(string: "https://github.com/simon-baumhauer/kladde")!, range: link)
+        NSApp.orderFrontStandardAboutPanel(options: [.credits: mitwirkende])
+        NSApp.activate(ignoringOtherApps: true)
+    }
+
     @objc func zeigeEinstellungen(_ sender: Any?) {
         EinstellungsFenster.gemeinsam.zeige()
     }

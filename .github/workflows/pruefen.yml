@@ -1,0 +1,34 @@
+# Baut den Editor-Kern, lässt die Tests laufen und baut die App, bei jedem Push
+# auf main und jedem Pull Request.
+name: Prüfen
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  pruefen:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      # Scintilla und Lexilla hängen nur am Stand von Notepad++ und an den Bauskripten.
+      - uses: actions/cache@v4
+        with:
+          path: |
+            extern/notepad-plus-plus
+            build/extern
+          key: kern-${{ runner.os }}-${{ hashFiles('scripts/extern-bauen.sh', 'extern/mac/**') }}
+
+      - name: Editor-Kern bauen (Scintilla und Lexilla aus Notepad++)
+        run: ./scripts/extern-bauen.sh
+
+      - name: Tests
+        run: swift test
+
+      - name: App bauen
+        run: ./scripts/app-bauen.sh

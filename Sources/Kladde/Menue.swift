@@ -6,7 +6,7 @@ enum Menue {
         let leiste = NSMenu()
 
         leiste.addItem(untermenue(appName, [
-            eintrag("Über \(appName)", #selector(NSApplication.orderFrontStandardAboutPanel(_:))),
+            eintrag("Über \(appName)", #selector(AppDelegate.zeigeUeber(_:))),
             .separator(),
             eintrag("Einstellungen …", #selector(AppDelegate.zeigeEinstellungen(_:)), ","),
             .separator(),

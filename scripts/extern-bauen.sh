@@ -1,5 +1,6 @@
 #!/bin/zsh
-# Baut den Editor-Kern aus dem Quellcode von Notepad++ für den Mac:
+# Baut den Editor-Kern aus dem Quellcode von Notepad++ für den Mac, für Apple
+# Silicon und Intel in einem (universell):
 #   build/extern/out/Scintilla.framework  (Editor-Komponente, Cocoa)
 #   build/extern/out/liblexilla.dylib     (Syntaxfarben, rund 130 Sprachen)
 #
@@ -17,6 +18,10 @@ OBJ=$ZIEL/lexilla-obj
 MIN=13.0
 
 mkdir -p $AUS $OBJ
+# Objektdateien von früher, die nur eine Architektur haben, neu bauen.
+for o in $OBJ/*.o(N); do
+  lipo -archs $o 2>/dev/null | grep -q x86_64 || { rm -f $OBJ/*.o; break; }
+done
 
 # Der Quellcode von Notepad++ liegt nicht im Repo, sondern wird geholt: der
 # Stand, gegen den Kladde gebaut und geprüft ist.
@@ -32,7 +37,7 @@ fi
 echo "→ Scintilla"
 xcodebuild -project $NPP/scintilla/cocoa/Scintilla/Scintilla.xcodeproj \
   -scheme Scintilla -configuration Release -derivedDataPath $ZIEL/dd \
-  ARCHS=arm64 ONLY_ACTIVE_ARCH=YES CONFIGURATION_BUILD_DIR=$AUS \
+  ARCHS="arm64 x86_64" ONLY_ACTIVE_ARCH=NO CONFIGURATION_BUILD_DIR=$AUS \
   MACOSX_DEPLOYMENT_TARGET=$MIN \
   CODE_SIGN_IDENTITY=- CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM= -quiet
 
@@ -59,13 +64,13 @@ quellen=(
 print -l $quellen | xargs -P 10 -I{} zsh -c '
   o='$OBJ'/${1:t:r}.o
   [[ -f $o && $o -nt $1 ]] && exit 0
-  clang++ -c -std=c++17 -O2 -fPIC -arch arm64 -mmacosx-version-min='$MIN' \
+  clang++ -c -std=c++17 -O2 -fPIC -arch arm64 -arch x86_64 -mmacosx-version-min='$MIN' \
     -fvisibility=hidden -w \
     -I'$NPP'/lexilla/include -I'$NPP'/lexilla/lexlib -I'$NPP'/scintilla/include \
     -I'$NPP'/lexilla/access -I'$WURZEL'/extern/mac \
     $1 -o $o' _ {}
 
-clang++ -dynamiclib -arch arm64 -mmacosx-version-min=$MIN \
+clang++ -dynamiclib -arch arm64 -arch x86_64 -mmacosx-version-min=$MIN \
   -install_name @rpath/liblexilla.dylib \
   $OBJ/*.o -o $AUS/liblexilla.dylib
 codesign -f -s - $AUS/liblexilla.dylib 2>/dev/null
