@@ -1,0 +1,4 @@
+build/
+.build/
+extern/notepad-plus-plus/
+.DS_Store

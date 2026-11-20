@@ -1,0 +1,332 @@
+import AppKit
+import ScintillaBruecke
+
+/// Selbstprüfung der laufenden App, für den Bau ohne Zuschauer:
+///
+///     open -n -a build/Kladde.app datei1 datei2 --args -KladdeProbe /pfad/zum/ordner \
+///         [-KladdeProbeAktion sichern|tippen|nichts] [-KladdeSitzung /pfad/zur/sitzung]
+///
+/// Die App schreibt je Dokument ein Bild und in bericht.txt, was sie sieht.
+/// Danach, je nach Aktion:
+///   sichern  tippt ins letzte Dokument mit Datei und sichert es (Vorgabe)
+///   tippen   tippt in jedes Dokument, ohne zu sichern, stellt das erste auf
+///            UTF-16 LE und das letzte auf CRLF um — für die Sitzung
+///   nichts   nur berichten
+/// und beendet sich auf dem normalen Weg (also mit Sitzung). Ohne
+/// «-KladdeProbe» geschieht nichts. («open --env» taugt nicht: Die Dateien
+/// kommen dann nicht bei der App an.)
+enum Probe {
+    static func starteFallsVerlangt() {
+        guard let pfad = UserDefaults.standard.string(forKey: "KladdeProbe") else { return }
+        let aktion = UserDefaults.standard.string(forKey: "KladdeProbeAktion") ?? "sichern"
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+            lauf(in: URL(fileURLWithPath: pfad, isDirectory: true), aktion: aktion)
+        }
+    }
+
+    private static func lauf(in ordner: URL, aktion: String) {
+        var bericht: [String] = []
+        func schliesse() {
+            try? bericht.joined(separator: "\n").write(
+                to: ordner.appendingPathComponent("bericht.txt"), atomically: true, encoding: .utf8)
+            NSApp.terminate(nil)
+        }
+
+        bericht.append("menü: " + (NSApp.mainMenu?.items.map(\.title).joined(separator: " | ") ?? "keines"))
+        let vorne = NSApp.orderedWindows.lazy.compactMap { $0.windowController?.document as? Dokument }.first
+        let dokumente = NSDocumentController.shared.documents.compactMap { $0 as? Dokument }
+        for (nummer, dokument) in dokumente.enumerated() {
+            guard let fenster = dokument.windowControllers.first?.window, let editor = dokument.editor else {
+                continue
+            }
+            let anfang = String(decoding: editor.utf8.prefix(40), as: UTF8.self)
+                .replacingOccurrences(of: "\r", with: "\\r").replacingOccurrences(of: "\n", with: "\\n")
+            bericht.append(
+                "dokument \(nummer): «\(dokument.displayName ?? "?")» \(dokument.datei.kodierung.name), "
+                    + "zeilenende \(dokument.datei.zeilenende), geändert \(dokument.isDocumentEdited), "
+                    + "tabs im fenster \(fenster.tabbedWindows?.count ?? 1), marke \(editor.position)"
+                    + (dokument === vorne ? ", vorne" : "") + ", sprache \(editor.sprache.name)"
+                    + (dokument.gewaehlteSprache != nil ? " (gewählt)" : "") + ", text «\(anfang)»")
+        }
+        for (nummer, dokument) in dokumente.enumerated() {
+            if let fenster = dokument.windowControllers.first?.window {
+                fenster.makeKeyAndOrderFront(nil)
+                bild(von: fenster, nach: ordner.appendingPathComponent("fenster-\(nummer).png"))
+            }
+        }
+
+        switch aktion {
+        case "suchen":
+            sucheProbe(dokumente: dokumente, ordner: ordner, bericht: { bericht.append($0) }, fertig: schliesse)
+            return
+        case "tippen":
+            for dokument in dokumente {
+                dokument.editor?.ansicht.insertText("ungesichert ✓\n")
+            }
+            if let erstes = dokumente.first { erstes.kodierungUmwandeln(eintrag(Textdatei.Kodierung.utf16LE.rawValue)) }
+            if dokumente.count > 1, let letztes = dokumente.last {
+                letztes.zeilenendeUmwandeln(eintrag(Textdatei.Zeilenende.crlf.rawValue))
+            }
+            bericht.append("getippt in \(dokumente.count), geändert: "
+                + dokumente.map { String($0.isDocumentEdited) }.joined(separator: " "))
+            vorne?.windowControllers.first?.window?.makeKeyAndOrderFront(nil)
+            return schliesse()
+        case "nichts":
+            return schliesse()
+        case "darstellung":
+            // Jedes Dokument in drei Farbschemata, dann mit Symbolen, markierter
+            // Klammer und eingeklappt. Die Einstellungen gehen danach zurück.
+            let vorher = (Einstellungen.farbschema, Einstellungen.leerzeichenZeigen, Einstellungen.zeilenendenZeigen)
+            var schritte: [() -> Void] = []
+            for (nummer, dokument) in dokumente.enumerated() {
+                guard let fenster = dokument.windowControllers.first?.window, let editor = dokument.editor else {
+                    continue
+                }
+                for schema in ["Standard", "DarkModeDefault", "Monokai"] {
+                    schritte.append { Einstellungen.farbschema = schema; fenster.makeKeyAndOrderFront(nil) }
+                    schritte.append { bild(von: fenster, nach: ordner.appendingPathComponent("\(nummer)-\(schema).png")) }
+                }
+                schritte.append {
+                    Einstellungen.farbschema = "Standard"
+                    Einstellungen.leerzeichenZeigen = true
+                    Einstellungen.zeilenendenZeigen = true
+                    // Auf die erste öffnende Klammer, damit das Paar leuchtet.
+                    if let stelle = editor.utf8.firstIndex(where: { $0 == UInt8(ascii: "{") || $0 == UInt8(ascii: "(") }) {
+                        editor.position = stelle
+                    }
+                }
+                schritte.append { bild(von: fenster, nach: ordner.appendingPathComponent("\(nummer)-symbole.png")) }
+                schritte.append {
+                    let offen = editor.sichtbareZeilen
+                    editor.klappeAlles(ein: true)
+                    bericht.append("dokument \(nummer): sichtbare zeilen \(offen), eingeklappt \(editor.sichtbareZeilen)")
+                }
+                schritte.append { bild(von: fenster, nach: ordner.appendingPathComponent("\(nummer)-eingeklappt.png")) }
+                schritte.append {
+                    editor.klappeAlles(ein: false)
+                    Einstellungen.leerzeichenZeigen = false
+                    Einstellungen.zeilenendenZeigen = false
+                }
+            }
+            // «Automatisch» bei dunklem macOS (hier nur für die App umgestellt).
+            if let fenster = dokumente.first?.windowControllers.first?.window {
+                schritte.append { Einstellungen.farbschema = ""; NSApp.appearance = NSAppearance(named: .darkAqua) }
+                schritte.append {}
+                schritte.append { bild(von: fenster, nach: ordner.appendingPathComponent("0-automatisch-dunkel.png")) }
+                schritte.append { NSApp.appearance = nil }
+            }
+            schritte.append {
+                (Einstellungen.farbschema, Einstellungen.leerzeichenZeigen, Einstellungen.zeilenendenZeigen) = vorher
+                schliesse()
+            }
+            // Mit Pausen, damit Scintilla zwischen den Schritten zeichnet und färbt.
+            for (index, schritt) in schritte.enumerated() {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.25 * Double(index), execute: schritt)
+            }
+            return
+        case "sprache":
+            // Das erste Dokument von Hand auf Python stellen (für die Sitzung).
+            if let erstes = dokumente.first {
+                let wahl = NSMenuItem()
+                wahl.representedObject = "python"
+                erstes.spracheWaehlen(wahl)
+                bericht.append("gewählt: \(erstes.editor?.sprache.name ?? "?")")
+            }
+            return schliesse()
+        case "kodierung":
+            // Erstes Dokument mit Datei: in UTF-16 LE sichern, dann als Windows-1252 neu öffnen.
+            guard let dokument = dokumente.first(where: { $0.fileURL != nil }), let ziel = dokument.fileURL else {
+                bericht.append("kodierung: kein Dokument mit Datei")
+                return schliesse()
+            }
+            dokument.kodierungUmwandeln(eintrag(Textdatei.Kodierung.utf16LE.rawValue))
+            bericht.append("umgestellt: \(dokument.datei.kodierung.name), geändert \(dokument.isDocumentEdited)")
+            dokument.save(to: ziel, ofType: "public.plain-text", for: .saveOperation) { fehler in
+                let bytes = (try? Data(contentsOf: ziel)) ?? Data()
+                bericht.append(
+                    "gesichert: fehler \(fehler?.localizedDescription ?? "keiner"), geändert \(dokument.isDocumentEdited), "
+                        + "erste bytes \(bytes.prefix(6).map { String(format: "%02x", $0) }.joined(separator: " "))")
+                dokument.neuOeffnenAls(eintrag(Textdatei.Kodierung.windows1252.rawValue))
+                let text = String(decoding: dokument.editor?.utf8.prefix(12) ?? Data(), as: UTF8.self)
+                bericht.append(
+                    "neu geöffnet als \(dokument.datei.kodierung.name), geändert \(dokument.isDocumentEdited), "
+                        + "text «\(text.unicodeScalars.map { $0.value < 32 ? "·" : String($0) }.joined())»")
+                schliesse()
+            }
+            return
+        default:
+            break
+        }
+
+        // Tippen, sichern, nachlesen — am letzten Dokument, das eine Datei hat.
+        guard let dokument = dokumente.last(where: { $0.fileURL != nil }),
+            let ziel = dokument.fileURL, let editor = dokument.editor
+        else {
+            bericht.append("sichern: kein Dokument mit Datei")
+            return schliesse()
+        }
+        editor.ansicht.insertText("Äöü € getippt\n")
+        bericht.append("nach dem Tippen: geändert \(dokument.isDocumentEdited)")
+        let erwartet = editor.utf8
+        dokument.save(to: ziel, ofType: dokument.fileType ?? "public.plain-text", for: .saveOperation) { fehler in
+            if let fehler {
+                bericht.append("sichern: FEHLER \(fehler.localizedDescription)")
+            } else {
+                let aufPlatte = Textdatei(daten: (try? Data(contentsOf: ziel)) ?? Data())
+                bericht.append(
+                    "nach dem Sichern: geändert \(dokument.isDocumentEdited), "
+                        + "datei stimmt \(aufPlatte.utf8 == erwartet), auf der Platte \(aufPlatte.kodierung.name)")
+            }
+            if let fenster = dokument.windowControllers.first?.window {
+                bild(von: fenster, nach: ordner.appendingPathComponent("nach-dem-sichern.png"))
+            }
+            schliesse()
+        }
+    }
+
+    /// Suchleiste, Markieren, Ersetzen samt Widerrufen, Smart Highlighting,
+    /// Ergebnisliste und Suchen/Ersetzen im Ordner «-KladdeProbeOrdner».
+    /// Arbeitet am vordersten Dokument; die Suchoptionen gehen danach zurück.
+    private static func sucheProbe(
+        dokumente: [Dokument], ordner: URL, bericht: @escaping (String) -> Void, fertig: @escaping () -> Void
+    ) {
+        guard let fensterKontrolle = NSApp.orderedWindows.lazy.compactMap({ $0.windowController as? EditorFenster }).first,
+            let fenster = fensterKontrolle.window
+        else {
+            bericht("suchen: kein Fenster")
+            return fertig()
+        }
+        let editor = fensterKontrolle.editor
+        let vorher = SuchZustand.gemeinsam.optionen
+        func setze(_ text: String, ersetzung: String = "", modus: SuchOptionen.Modus = .normal, ganzesWort: Bool = false) {
+            var o = SuchOptionen()
+            o.text = text
+            o.ersetzung = ersetzung
+            o.modus = modus
+            o.ganzesWort = ganzesWort
+            SuchZustand.gemeinsam.optionen = o
+        }
+        func zeigeAuswahl() -> String {
+            let a = editor.auswahl
+            return "\(a.lowerBound)..<\(a.upperBound) «\(editor.text(a) ?? "")»"
+        }
+
+        // Schritte nacheinander, mit Pausen zum Zeichnen; ein Schritt mit
+        // `weiter` wartet, bis er es selbst aufruft.
+        var schritte: [(@escaping () -> Void) -> Void] = []
+        func schritt(_ arbeit: @escaping () -> Void) { schritte.append { weiter in arbeit(); weiter() } }
+        func warte(_ arbeit: @escaping (@escaping () -> Void) -> Void) { schritte.append(arbeit) }
+
+        schritt {
+            editor.waehleAus(0..<0)
+            fensterKontrolle.oeffneSuche(ersetzen: true)
+            setze("bern")
+            let antwort = Suchaktion.live(in: editor, ab: 0)
+            bericht("live «bern»: \(antwort.text), auswahl \(zeigeAuswahl()), hinterlegt \(editor.anzahlMarkierungen(Editor.indikatorSuche))")
+        }
+        schritt { bild(von: fenster, nach: ordner.appendingPathComponent("leiste.png")) }
+        schritt {
+            let a = Suchaktion.weiter(in: editor)
+            let b = Suchaktion.weiter(in: editor)
+            let c = Suchaktion.weiter(in: editor)
+            bericht("weiter ×3: \(a.text) | \(b.text) | \(c.text), auswahl \(zeigeAuswahl())")
+            let d = Suchaktion.weiter(in: editor, rueckwaerts: true)
+            bericht("rückwärts: \(d.text), auswahl \(zeigeAuswahl())")
+        }
+        schritt {
+            setze("bern", ganzesWort: true)
+            let antwort = Suchaktion.alleMarkieren(in: editor, nurAuswahl: false)
+            bericht("alle markieren (ganzes Wort): \(antwort.text), markiert \(editor.anzahlMarkierungen(Editor.indikatorMarkiert))")
+        }
+        schritt { bild(von: fenster, nach: ordner.appendingPathComponent("markiert.png")) }
+        schritt {
+            let vorher = editor.utf8
+            setze("(\\w+)stadt", ersetzung: "\\U$1\\E-Stadt", modus: .regulaer)
+            let antwort = Suchaktion.alleErsetzen(in: editor, nurAuswahl: false)
+            let erste = String(decoding: editor.utf8, as: UTF8.self).split(separator: "\n").first { $0.contains("-Stadt") } ?? "?"
+            bericht("regex ersetzen: \(antwort.text), zeile «\(erste)», geändert \(dokumente.first { $0.editor === editor }?.isDocumentEdited ?? false)")
+            editor.ansicht.message(UInt32(SCI_UNDO), wParam: 0, lParam: 0)
+            bericht("ein Widerrufen: text wie vorher \(editor.utf8 == vorher)")
+        }
+        schritt {
+            setze("Bern", ersetzung: "BERN")
+            editor.waehleAus(0..<0)
+            _ = Suchaktion.weiter(in: editor)
+            let a = Suchaktion.ersetzen(in: editor)
+            bericht("ersetzen einzeln: \(a.text), auswahl danach \(zeigeAuswahl())")
+            editor.ansicht.message(UInt32(SCI_UNDO), wParam: 0, lParam: 0)
+        }
+        schritt {
+            // Smart Highlighting: ein ganzes Wort auswählen.
+            fensterKontrolle.schliesseSuche()
+            editor.markierungenLoeschenFuerProbe()
+            let text = editor.suchtext
+            var o = SuchOptionen()
+            o.text = "Bern"
+            o.grossKlein = true
+            o.ganzesWort = true
+            if let erster = (try? Suchmuster(o))?.alle(in: text).first { editor.waehleAus(erster.bereich) }
+        }
+        schritt {
+            bericht("smart highlighting: \(editor.anzahlMarkierungen(Editor.indikatorSmart)) weitere Stellen leuchten")
+            bild(von: fenster, nach: ordner.appendingPathComponent("smart.png"))
+        }
+        schritt {
+            editor.geheZuZeile(3)
+            bericht("gehe zu Zeile 3: jetzt Zeile \(editor.aktuelleZeile)")
+            setze("Bern")
+            let antwort = Suchergebnisse.gemeinsam.findeAlle(in: Dokumente.inTabfolge())
+            bericht("alle finden in offenen: \(antwort.text)")
+        }
+        schritt {
+            if let w = Suchergebnisse.gemeinsam.window { bild(von: w, nach: ordner.appendingPathComponent("ergebnisse-offen.png")) }
+        }
+        if let pfad = UserDefaults.standard.string(forKey: "KladdeProbeOrdner") {
+            warte { weiter in
+                DateiSuche.gemeinsam.zeige(ordnerVon: nil)
+                DateiSuche.gemeinsam.setze(ordner: pfad, filter: "*.txt !\\ausgelassen")
+                setze("Bern")
+                DateiSuche.gemeinsam.starte(ersetzen: false) { satz in
+                    bericht("ordner finden: \(satz)")
+                    weiter()
+                }
+            }
+            schritt {
+                if let w = Suchergebnisse.gemeinsam.window { bild(von: w, nach: ordner.appendingPathComponent("ergebnisse-ordner.png")) }
+                if let w = DateiSuche.gemeinsam.window { bild(von: w, nach: ordner.appendingPathComponent("dateisuche.png")) }
+            }
+            warte { weiter in
+                setze("Bern", ersetzung: "Zürich")
+                DateiSuche.gemeinsam.starte(ersetzen: true, bestaetigt: true) { satz in
+                    bericht("ordner ersetzen: \(satz)")
+                    weiter()
+                }
+            }
+        }
+        schritt { SuchZustand.gemeinsam.optionen = vorher }
+
+        func fuehreAus(_ index: Int) {
+            guard index < schritte.count else { return fertig() }
+            let arbeit = schritte[index]
+            arbeit {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { fuehreAus(index + 1) }
+            }
+        }
+        fuehreAus(0)
+    }
+
+    private static func eintrag(_ tag: Int) -> NSMenuItem {
+        let eintrag = NSMenuItem()
+        eintrag.tag = tag
+        return eintrag
+    }
+
+    /// Das Fenster samt Titelleiste, von der App selbst gezeichnet (kein Bildschirmfoto).
+    private static func bild(von fenster: NSWindow, nach ziel: URL) {
+        guard let ansicht = fenster.contentView?.superview ?? fenster.contentView,
+            let flaeche = ansicht.bitmapImageRepForCachingDisplay(in: ansicht.bounds)
+        else { return }
+        ansicht.cacheDisplay(in: ansicht.bounds, to: flaeche)
+        try? flaeche.representation(using: .png, properties: [:])?.write(to: ziel)
+    }
+}
