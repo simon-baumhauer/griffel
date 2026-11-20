@@ -65,6 +65,9 @@ enum Probe {
         case "review":
             review(ordner: ordner, bericht: { bericht.append($0) }, fertig: schliesse)
             return
+        case "bedienung":
+            bedienung(ordner: ordner, bericht: { bericht.append($0) }, fertig: schliesse)
+            return
         case "plugins":
             plugins(ordner: ordner, bericht: { bericht.append($0) }, fertig: schliesse)
             return
@@ -322,6 +325,8 @@ enum Probe {
             }
             warte { weiter in
                 setze("Bern", ersetzung: "Zürich")
+                // Wie ein Mensch: Der Dialog nimmt, was in seinen Feldern steht.
+                SuchenDialog.gemeinsam.setzeSuchtextFuerProbe("Bern", ersetzung: "Zürich")
                 SuchenDialog.gemeinsam.starteDateisuche(ersetzen: true, bestaetigt: true) { satz in
                     bericht("ordner ersetzen: \(satz)")
                     weiter()
@@ -672,6 +677,464 @@ enum Probe {
         }
         fuehreAus(0)
     }
+
+    // MARK: Bedienung mit echten Ereignissen
+
+    private static func ereignis(_ typ: NSEvent.EventType, _ v: NSView, _ p: NSPoint, klicks: Int = 1) -> NSEvent {
+        NSEvent.mouseEvent(with: typ, location: v.convert(p, to: nil), modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
+                           windowNumber: v.window?.windowNumber ?? 0, context: nil, eventNumber: 0, clickCount: klicks, pressure: 1)!
+    }
+
+    /// Ein Klick wie mit der Maus: Die Ansicht, die an der Stelle zuoberst liegt, bekommt ihn.
+    @discardableResult
+    private static func klick(_ v: NSView, _ p: NSPoint, klicks: Int = 1) -> NSView? {
+        guard let w = v.window, let wurzel = w.contentView?.superview ?? w.contentView else { return nil }
+        guard let ziel = wurzel.hitTest(v.convert(p, to: nil)) else { return nil }
+        let runter = ereignis(.leftMouseDown, v, p, klicks: klicks)
+        let hoch = ereignis(.leftMouseUp, v, p, klicks: klicks)
+        if let knopf = ziel as? NSButton {
+            // NSButton verfolgt die Maus selbst und wartet auf ein echtes Loslassen;
+            // getroffen ist er (Treffertest oben), also wie ein Klick auslösen.
+            knopf.performClick(nil)
+        } else {
+            ziel.mouseDown(with: runter)
+            ziel.mouseUp(with: hoch)
+        }
+        return ziel
+    }
+
+    private static func mitte(_ v: NSView) -> NSPoint { NSPoint(x: v.bounds.midX, y: v.bounds.midY) }
+
+    private static func taste(_ zeichen: String, _ mod: NSEvent.ModifierFlags, _ code: UInt16, in w: NSWindow?) -> Bool {
+        guard let e = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: mod, timestamp: ProcessInfo.processInfo.systemUptime,
+                                       windowNumber: w?.windowNumber ?? 0, context: nil, characters: zeichen,
+                                       charactersIgnoringModifiers: zeichen, isARepeat: false, keyCode: code) else { return false }
+        return NSApp.mainMenu?.performKeyEquivalent(with: e) ?? false
+    }
+
+    private static func fensterTaste(_ zeichen: String, _ code: UInt16, in w: NSWindow) -> Bool {
+        guard let e = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
+                                       windowNumber: w.windowNumber, context: nil, characters: zeichen,
+                                       charactersIgnoringModifiers: zeichen, isARepeat: false, keyCode: code) else { return false }
+        return w.performKeyEquivalent(with: e)
+    }
+
+    /// Prüft die Bedienung wie ein Mensch: Tabs schliessen, anheften, verschieben,
+    /// Optionen der Tableiste, Kürzel, Symbolleiste, Dialoge, Optionen, Rückfrage.
+    /// Erwartet drei Dateien. Läuft in einer Kopie mit eigener Kennung, damit die
+    /// Einstellungen des Nutzers unberührt bleiben.
+    private static func bedienung(ordner: URL, bericht: @escaping (String) -> Void, fertig: @escaping () -> Void) {
+        let h = Hauptfenster.gemeinsam
+        guard let fenster = h.window else { return fertig() }
+        let tl = h.tableiste
+        var fehlerzahl = 0
+        let fortschritt = ordner.appendingPathComponent("fortschritt.txt")
+        try? Data().write(to: fortschritt)
+        func notiere(_ zeile: String) {
+            if let h = try? FileHandle(forWritingTo: fortschritt) { h.seekToEndOfFile(); h.write(Data((zeile + "\n").utf8)); try? h.close() }
+        }
+        let bericht: (String) -> Void = { zeile in bericht(zeile); notiere(zeile) }
+        func pruefe(_ ok: Bool, _ text: String) {
+            bericht((ok ? "✓ " : "✗ ") + text)
+            if !ok { fehlerzahl += 1 }
+        }
+        func namen() -> String { h.tabs.map(\.tabTitel).joined(separator: ", ") }
+        func bildTabs(_ name: String) {
+            bild(von: fenster, nach: ordner.appendingPathComponent(name))
+        }
+        var schritte: [() -> Void] = []
+        func s(_ f: @escaping () -> Void) { schritte.append(f) }
+
+        s {
+            fenster.setContentSize(NSSize(width: 1000, height: 620))
+            bericht("start: \(h.tabs.count) tabs [\(namen())], aktiv \(h.aktivesDokument?.tabTitel ?? "-")")
+            pruefe(Symbole.tab("closeTabButton", dunkel: false) != nil, "helles Schliessen-Kreuz lesbar (11×11 PNG in ICO)")
+            pruefe(Symbole.tab("closeTabButton", dunkel: false)?.size == NSSize(width: 11, height: 11), "Kreuz in natürlicher Grösse 11 pt")
+        }
+        s { bildTabs("tabs-start.png") }
+        // Überfahren eines inaktiven Tabs zeigt Kreuz und Pin; Klick aufs Kreuz schliesst genau diesen Tab.
+        s {
+            let r = tl.rechteckFuerProbe(0)
+            tl.mouseMoved(with: ereignis(.mouseMoved, tl, NSPoint(x: r.midX, y: r.midY)))
+        }
+        s { bildTabs("tabs-hover-inaktiv.png") }
+        s {
+            let z = tl.schliessRechteckFuerProbe(0)
+            tl.mouseMoved(with: ereignis(.mouseMoved, tl, NSPoint(x: z.midX, y: z.midY)))
+        }
+        s { bildTabs("tabs-hover-kreuz.png") }
+        s {
+            let vorher = h.tabs.count, erster = h.tabs.first?.tabTitel ?? ""
+            let z = tl.schliessRechteckFuerProbe(0)
+            let ziel = klick(tl, NSPoint(x: z.midX, y: z.midY))
+            pruefe(ziel === tl, "Klick aufs Kreuz trifft die Tableiste (nichts liegt darüber)")
+            pruefe(h.tabs.count == vorher - 1 && !h.tabs.contains { $0.tabTitel == erster }, "Kreuz schliesst inaktiven Tab «\(erster)» → [\(namen())]")
+        }
+        s {
+            let vorher = h.tabs.count, aktiv = h.aktivesDokument?.tabTitel ?? ""
+            guard let i = tl.aktiverIndexFuerProbe else { return pruefe(false, "kein aktiver Tab") }
+            let z = tl.schliessRechteckFuerProbe(i)
+            klick(tl, NSPoint(x: z.midX, y: z.midY))
+            pruefe(h.tabs.count == vorher - 1, "Kreuz schliesst aktiven Tab «\(aktiv)» → [\(namen())]")
+        }
+        // Kürzel: Neu, Schliessen.
+        s {
+            let vorher = h.tabs.count
+            pruefe(taste("n", .command, 45, in: fenster), "⌘N als Kürzel erkannt")
+            pruefe(h.tabs.count == vorher + 1, "⌘N legt ein neues Dokument an → [\(namen())]")
+        }
+        s {
+            let vorher = h.tabs.count
+            pruefe(taste("w", .command, 13, in: fenster), "⌘W als Kürzel erkannt")
+            pruefe(h.tabs.count == vorher - 1, "⌘W schliesst den aktiven Tab → [\(namen())]")
+        }
+        // Doppelklick auf freie Fläche: neues Dokument.
+        s {
+            let vorher = h.tabs.count
+            let r = tl.rechteckFuerProbe(h.tabs.count - 1)
+            klick(tl, NSPoint(x: min(tl.bounds.width - 60, r.maxX + 40), y: r.midY), klicks: 2)
+            pruefe(h.tabs.count == vorher + 1, "Doppelklick auf freie Fläche legt «neu» an → [\(namen())]")
+        }
+        s {
+            NSDocumentController.shared.newDocument(nil)
+            bericht("drei Tabs: [\(namen())]")
+        }
+        // Mittlere Maustaste.
+        s {
+            let vorher = h.tabs.count
+            let r = tl.rechteckFuerProbe(0)
+            // Über Core Graphics, denn nur so trägt das Ereignis die mittlere Taste.
+            let bildschirm = fenster.convertPoint(toScreen: tl.convert(NSPoint(x: r.midX, y: r.midY), to: nil))
+            let hoehe = NSScreen.screens.first?.frame.height ?? 0
+            let cg = CGEvent(mouseEventSource: nil, mouseType: .otherMouseUp,
+                             mouseCursorPosition: CGPoint(x: bildschirm.x, y: hoehe - bildschirm.y), mouseButton: .center)!
+            let e = NSEvent(cgEvent: cg)!
+            if e.buttonNumber == 2 {
+                tl.otherMouseUp(with: e)
+                pruefe(h.tabs.count == vorher - 1, "Mittlere Maustaste schliesst → [\(namen())]")
+            } else {
+                bericht("· mittlere Maustaste hier nicht nachstellbar (buttonNumber \(e.buttonNumber))")
+            }
+            NSDocumentController.shared.newDocument(nil)
+            NSDocumentController.shared.newDocument(nil)
+        }
+        // Anheften per Pin des aktiven Tabs.
+        s {
+            guard let i = tl.aktiverIndexFuerProbe else { return }
+            let d = h.tabs[i]
+            let p = tl.pinRechteckFuerProbe(i)
+            klick(tl, NSPoint(x: p.midX, y: p.midY))
+            pruefe(d.angeheftet, "Pin heftet «\(d.tabTitel)» an; steht jetzt an Stelle \((h.tabs.firstIndex { $0 === d } ?? -1) + 1)")
+            pruefe(h.tabs.first === d, "Angehefteter Tab rückt nach vorn")
+        }
+        s { bildTabs("tabs-angeheftet.png") }
+        s {
+            let d = h.tabs[0]
+            let p = tl.pinRechteckFuerProbe(0)
+            tl.mouseMoved(with: ereignis(.mouseMoved, tl, NSPoint(x: p.midX, y: p.midY)))
+            klick(tl, NSPoint(x: p.midX, y: p.midY))
+            pruefe(!d.angeheftet, "Zweiter Klick auf den Pin löst ihn")
+        }
+        // Ziehen zum Umsortieren, und mit «Tabs nicht mit der Maus verschiebbar».
+        s {
+            let letzter = h.tabs[h.tabs.count - 1]
+            let von = tl.rechteckFuerProbe(h.tabs.count - 1), nach = tl.rechteckFuerProbe(0)
+            tl.mouseDown(with: ereignis(.leftMouseDown, tl, NSPoint(x: von.midX, y: von.midY)))
+            tl.mouseDragged(with: ereignis(.leftMouseDragged, tl, NSPoint(x: (von.midX + nach.midX) / 2, y: von.midY)))
+            tl.mouseDragged(with: ereignis(.leftMouseDragged, tl, NSPoint(x: nach.midX, y: nach.midY)))
+            tl.mouseUp(with: ereignis(.leftMouseUp, tl, NSPoint(x: nach.midX, y: nach.midY)))
+            pruefe(h.tabs.first === letzter, "Ziehen schiebt den letzten Tab nach vorn → [\(namen())]")
+            Einstellungen.tabsSperren = true
+            let zweiter = h.tabs[1]
+            let a = tl.rechteckFuerProbe(1), b = tl.rechteckFuerProbe(0)
+            tl.mouseDown(with: ereignis(.leftMouseDown, tl, NSPoint(x: a.midX, y: a.midY)))
+            tl.mouseDragged(with: ereignis(.leftMouseDragged, tl, NSPoint(x: b.midX, y: b.midY)))
+            tl.mouseUp(with: ereignis(.leftMouseUp, tl, NSPoint(x: b.midX, y: b.midY)))
+            pruefe(h.tabs[1] === zweiter, "Gesperrt: Ziehen verschiebt nichts")
+            Einstellungen.tabsSperren = false
+        }
+        // Doppelklick auf einen Tab: nur mit Option schliesst er.
+        s {
+            let vorher = h.tabs.count
+            let r = tl.rechteckFuerProbe(0)
+            klick(tl, NSPoint(x: r.minX + 30, y: r.midY), klicks: 2)
+            pruefe(h.tabs.count == vorher, "Ohne Option schliesst Doppelklick keinen Tab")
+            Einstellungen.tabDoppelklickSchliesst = true
+            klick(tl, NSPoint(x: r.minX + 30, y: r.midY), klicks: 2)
+            pruefe(h.tabs.count == vorher - 1, "Mit «Tabs per Doppelklick schließen» schliesst er → [\(namen())]")
+            Einstellungen.tabDoppelklickSchliesst = false
+            NSDocumentController.shared.newDocument(nil)
+        }
+        // Ohne Schliessen-Kreuz wählt ein Klick an seiner Stelle nur den Tab.
+        s {
+            // Ohne Kreuz rückt der Pin an dessen Stelle (wie in Notepad++); ohne beide wählt der Klick nur.
+            Einstellungen.tabSchliessen = false
+            Einstellungen.tabPin = false
+            let i = 0
+            let vorher = h.tabs.count
+            let r = tl.rechteckFuerProbe(i)
+            klick(tl, NSPoint(x: r.maxX - 8, y: r.midY))
+            pruefe(h.tabs.count == vorher, "Ohne Kreuz schliesst ein Klick am rechten Rand nichts")
+            pruefe(tl.aktiverIndexFuerProbe == i, "… sondern wählt den Tab")
+        }
+        s { bildTabs("tabs-ohne-kreuz.png") }
+        s {
+            Einstellungen.tabPin = true
+            Einstellungen.tabSchliessen = true
+            Einstellungen.tabKnoepfeInaktiv = true
+        }
+        s { bildTabs("tabs-knoepfe-inaktiv.png") }
+        s {
+            Einstellungen.tabKnoepfeInaktiv = false
+            Einstellungen.tabNameMax = 4
+        }
+        s {
+            bildTabs("tabs-name-kurz.png")
+            pruefe(tl.rechteckFuerProbe(0).width < 110, "Max. Länge 4 kürzt die Tabs (Breite \(Int(tl.rechteckFuerProbe(0).width)))")
+            Einstellungen.tabNameMax = 0
+            Einstellungen.tabsVerkleinert = false
+        }
+        s {
+            pruefe(tl.frame.height == 29, "«Verkleinern» aus: Leiste 29 statt 26 pt hoch (jetzt \(Int(tl.frame.height)))")
+            bildTabs("tabs-gross.png")
+            Einstellungen.tabsVerkleinert = true
+            Einstellungen.tabsAusblenden = true
+        }
+        s {
+            pruefe(tl.isHidden, "«Ausblenden» blendet die Tableiste aus")
+            Einstellungen.tabsAusblenden = false
+            Einstellungen.tabBalken = false
+            Einstellungen.tabInaktivFarbe = false
+        }
+        s {
+            bildTabs("tabs-ohne-balken-und-farbe.png")
+            Einstellungen.tabBalken = true
+            Einstellungen.tabInaktivFarbe = true
+        }
+        // Kontextmenü eines Tabs.
+        s {
+            let r = tl.rechteckFuerProbe(0)
+            let m = tl.menu(for: ereignis(.rightMouseDown, tl, NSPoint(x: r.midX, y: r.midY)))
+            let titel = m?.items.map(\.title) ?? []
+            pruefe(titel.contains { $0.hasPrefix("Schließen") }, "Kontextmenü des Tabs hat «Schließen» (\(titel.count) Einträge)")
+        }
+        // Symbolleiste: Neu und Schliessen per Klick auf die Knöpfe.
+        s {
+            let knoepfe = h.werkzeugleiste.subviews.flatMap { $0.subviews }.compactMap { $0 as? Werkzeugleiste.Knopf }
+            guard let neu = knoepfe.first(where: { $0.befehl == "IDM_FILE_NEW" }),
+                  let zu = knoepfe.first(where: { $0.befehl == "IDM_FILE_CLOSE" }) else { return pruefe(false, "Knöpfe nicht gefunden") }
+            let vorher = h.tabs.count
+            klick(neu, mitte(neu))
+            pruefe(h.tabs.count == vorher + 1, "Knopf «Neu» → [\(namen())]")
+            klick(zu, NSPoint(x: 8, y: zu.bounds.midY))
+            pruefe(h.tabs.count == vorher, "Knopf «Schließen» → [\(namen())]")
+        }
+        // Ungesicherte Änderung: Das Kreuz fragt wie Notepad++ («Speichern»). Abbruch lässt den
+        // Tab offen, Nein schliesst ohne Sichern, Ja sichert in die Datei. Der Dialog ist modal;
+        // die Antwort gibt ein vorher geplanter Schritt.
+        func antworte(_ id: String, _ nach: Double = 0.5, bild name: String? = nil, pruefung: ((WinDialog) -> Void)? = nil) {
+            // Ein Timer, der auch im modalen Modus des Dialogs läuft (DispatchQueue.main tut es nicht).
+            let t = Timer(timeInterval: nach, repeats: false) { _ in
+                guard let d = WinDialog.oberster else { return pruefe(false, "Rückfrage erscheint nicht") }
+                if let name { bild(von: d.fenster, nach: ordner.appendingPathComponent(name)) }
+                pruefung?(d)
+                if let k = d.elemente[id] { klick(k, mitte(k)) }
+            }
+            RunLoop.main.add(t, forMode: .common)
+            RunLoop.main.add(t, forMode: .modalPanel)
+        }
+        s {
+            guard let e = h.editor, let i = tl.aktiverIndexFuerProbe else { return }
+            e.ansicht.insertText("geändert")
+            let vorher = h.tabs.count
+            let z = tl.schliessRechteckFuerProbe(i)
+            antworte("IDCANCEL", bild: "rueckfrage.png") { d in
+                pruefe(d.text("IDC_DOSAVEORNOTTEXT").contains("speichern?"), "Rückfrage «\(d.text("IDC_DOSAVEORNOTTEXT"))»")
+                pruefe(d.elemente["IDRETRY"]?.isHidden == true, "Bei einer Datei kein «Ja für alle»")
+            }
+            klick(tl, NSPoint(x: z.midX, y: z.midY))
+            pruefe(h.tabs.count == vorher && h.aktivesDokument?.isDocumentEdited == true, "«Abbruch» lässt den geänderten Tab offen")
+        }
+        s {
+            guard let i = tl.aktiverIndexFuerProbe else { return }
+            let vorher = h.tabs.count, name = h.aktivesDokument?.tabTitel ?? ""
+            let z = tl.schliessRechteckFuerProbe(i)
+            antworte("IDNO")
+            klick(tl, NSPoint(x: z.midX, y: z.midY))
+            pruefe(h.tabs.count == vorher - 1 && !h.tabs.contains { $0.tabTitel == name }, "«Nein» schliesst «\(name)» ohne Sichern")
+        }
+        s {
+            // Eine Datei mit Inhalt auf der Platte: «Ja» sichert hinein.
+            let datei = ordner.appendingPathComponent("d/alpha.txt")
+            if !h.tabs.contains(where: { $0.fileURL == datei }) {
+                NSDocumentController.shared.openDocument(withContentsOf: datei, display: true) { _, _, _ in }
+            }
+        }
+        s {
+            guard let d = h.tabs.first(where: { $0.fileURL != nil }), let url = d.fileURL else { return pruefe(false, "keine Datei offen") }
+            h.aktiviere(d)
+            d.editor?.ansicht.insertText("Neu: ")
+            let i = tl.aktiverIndexFuerProbe ?? 0
+            let z = tl.schliessRechteckFuerProbe(i)
+            antworte("IDYES")
+            klick(tl, NSPoint(x: z.midX, y: z.midY))
+            let inhalt = (try? String(contentsOf: url, encoding: .utf8)) ?? ""
+            pruefe(inhalt.hasPrefix("Neu: "), "«Ja» sichert «\(url.lastPathComponent)» und schliesst (Datei beginnt mit «\(inhalt.prefix(12))»)")
+            pruefe(!h.tabs.contains { $0 === d }, "… der Tab ist zu")
+        }
+        s {
+            // Zwei geänderte: «Ja für alle» und «Nein für alle» erscheinen; «Nein für alle» schliesst beide.
+            NSDocumentController.shared.newDocument(nil)
+            h.editor?.ansicht.insertText("a")
+            NSDocumentController.shared.newDocument(nil)
+            h.editor?.ansicht.insertText("b")
+            let geaenderte = h.tabs.filter(\.isDocumentEdited)
+            antworte("IDIGNORE", bild: "rueckfrage-mehrere.png") { d in
+                pruefe(d.elemente["IDRETRY"]?.isHidden == false && d.elemente["IDIGNORE"]?.isHidden == false,
+                       "Bei mehreren: «Ja für alle» und «Nein für alle»")
+            }
+            h.schliesse(geaenderte)
+            pruefe(!h.tabs.contains { $0.isDocumentEdited }, "«Nein für alle» schliesst alle geänderten → [\(namen())]")
+        }
+        // Suchen: ⌘F öffnet den Dialog, ↩ sucht, Esc schliesst.
+        s {
+            h.editor?.ersetze([(0..<(h.editor?.laenge ?? 0), "eins\nzwei\nzwei\n")])
+            h.editor?.waehleAus(0..<0)
+            pruefe(taste("f", .command, 3, in: fenster), "⌘F als Kürzel erkannt")
+            pruefe(SuchenDialog.gemeinsam.window?.isVisible == true, "⌘F zeigt den Suchen-Dialog")
+        }
+        s {
+            guard let w = SuchenDialog.gemeinsam.window else { return }
+            SuchenDialog.gemeinsam.setzeSuchtextFuerProbe("zwei")
+            pruefe(fensterTaste("\r", 36, in: w), "↩ im Suchen-Dialog wird angenommen")
+            pruefe(h.editor?.aktuelleZeile == 2, "↩ findet «zwei» in Zeile 2 (Zeile \(h.editor?.aktuelleZeile ?? 0))")
+            pruefe(fensterTaste("\u{1b}", 53, in: w), "Esc wird angenommen")
+            pruefe(w.isVisible == false, "Esc schliesst den Suchen-Dialog")
+        }
+        // Gehe zu: ⌘G, Zahl tippen, ↩.
+        s {
+            pruefe(taste("g", .command, 5, in: fenster), "⌘G als Kürzel erkannt")
+            guard let d = WinDialog.oberster else { return pruefe(false, "Gehe zu erscheint nicht") }
+            d.eingabe("ID_GOLINE_EDIT")?.textAnsichtOderFeldFuerProbe?.insertText("3")
+            pruefe(d.text("ID_GOLINE_EDIT") == "3", "Ziel «3» getippt")
+            pruefe(fensterTaste("\r", 36, in: d.fenster), "↩ in Gehe zu wird angenommen")
+            pruefe(h.editor?.aktuelleZeile == 3, "Gehe zu springt in Zeile 3 (Zeile \(h.editor?.aktuelleZeile ?? 0))")
+            pruefe(WinDialog.oberster == nil, "Gehe zu schliesst sich danach")
+        }
+        // Optionen: ⌘, öffnet, Klicks auf Seiten und Kästchen wirken sofort.
+        s {
+            pruefe(taste(",", .command, 43, in: fenster), "⌘, als Kürzel erkannt")
+            pruefe(EinstellungsFenster.gemeinsam.window?.isVisible == true, "⌘, zeigt «Optionen»")
+            EinstellungsFenster.gemeinsam.zeigeSeite(kennung: "Tabbar")
+        }
+        s {
+            guard let w = EinstellungsFenster.gemeinsam.window, let f = EinstellungsFenster.gemeinsam.formular("Tabbar"),
+                  let k = f.elemente["IDC_CHECK_ENABLETABCLOSE"] else { return pruefe(false, "Seite Dateireiter fehlt") }
+            bild(von: w, nach: ordner.appendingPathComponent("optionen-tabbar.png"))
+            klick(k, NSPoint(x: 6, y: k.bounds.midY))
+            pruefe(!Einstellungen.tabSchliessen, "Klick auf «Schließen-Kreuz anzeigen» schaltet es aus")
+            klick(k, NSPoint(x: 6, y: k.bounds.midY))
+            pruefe(Einstellungen.tabSchliessen, "… und wieder ein")
+            if let v = f.elemente["IDC_CHECK_TAB_VERTICAL"] as? NSControl { pruefe(!v.isEnabled, "«Vertikal» (nicht umgesetzt) ist ausgegraut") }
+            if let p = f.elemente["IDC_CHECK_ENABLETABPIN"], let nur = f.elemente["IDC_CHECK_SHOWONLYPINNEDBUTTON"] as? NSControl {
+                klick(p, NSPoint(x: 6, y: p.bounds.midY))
+                pruefe(!nur.isEnabled, "Ohne Pin-Funktion ist «Nur angeheftete Pins anzeigen» ausgegraut")
+                klick(p, NSPoint(x: 6, y: p.bounds.midY))
+                pruefe(nur.isEnabled, "… und mit ihr wieder frei")
+            }
+            if let e = f.elemente["IDC_EDIT_TABCOMPACTLABELLEN"] as? WinEingabe, let t = e.textAnsichtOderFeldFuerProbe {
+                t.selectAll(nil)
+                t.insertText("6")
+                pruefe(Einstellungen.tabNameMax == 6, "Max. Länge per Tippen: \(Einstellungen.tabNameMax)")
+                t.selectAll(nil)
+                t.insertText("0")
+                _ = w
+            }
+        }
+        s {
+            // Seitenwechsel per Klick in die Liste links.
+            guard let w = EinstellungsFenster.gemeinsam.window,
+                  let liste = w.contentView.flatMap({ alleAnsichten($0) })?.compactMap({ $0 as? WinListe }).first else { return }
+            klick(liste, NSPoint(x: 20, y: 2 + 18 * 0 + 9))
+            let f = EinstellungsFenster.gemeinsam.formular("Global")
+            pruefe(f?.elemente["IDC_CHECK_HIDESTATUSBAR"]?.isHiddenOrHasHiddenAncestor == false, "Klick auf «Allgemein» zeigt die Seite")
+            if let k = f?.elemente["IDC_CHECK_HIDESTATUSBAR"] {
+                klick(k, NSPoint(x: 6, y: k.bounds.midY))
+                pruefe(h.statusleiste.isHidden, "«Statusleiste ausblenden» wirkt sofort")
+                klick(k, NSPoint(x: 6, y: k.bounds.midY))
+                pruefe(!h.statusleiste.isHidden, "… und zurück")
+            }
+        }
+        s {
+            let seiten = EinstellungsFenster.gemeinsam.seitenKennungen
+            bericht("optionen-seiten: \(seiten.count) [\(seiten.joined(separator: ", "))]")
+            EinstellungsFenster.gemeinsam.zeigeSeite(kennung: "Toolbar")
+        }
+        s {
+            guard let f = EinstellungsFenster.gemeinsam.formular("Toolbar"), let gross = f.elemente["IDC_RADIO_BIGICON"] else { return }
+            klick(gross, NSPoint(x: 6, y: gross.bounds.midY))
+            pruefe(Einstellungen.symbolsatz == "fluentGross", "«Fluent UI: groß» gewählt (\(Einstellungen.symbolsatz))")
+        }
+        s {
+            pruefe(h.werkzeugleiste.frame.height == 44, "Grosse Symbole: Leiste 44 pt hoch (jetzt \(Int(h.werkzeugleiste.frame.height)))")
+            bildTabs("symbolleiste-gross.png")
+            if let f = EinstellungsFenster.gemeinsam.formular("Toolbar"), let std = f.elemente["IDC_RADIO_STANDARD"] {
+                klick(std, NSPoint(x: 6, y: std.bounds.midY))
+            }
+            pruefe(Einstellungen.symbolsatz == "standard", "Zurück auf «Standard-Symbole: klein»")
+        }
+        for kennung in ["Global", "Toolbar", "Scintillas", "Scintillas2", "DarkMode", "MarginsBorderEdge", "NewDoc", "Indentation",
+                        "Highlighting", "Searching", "Backup", "AutoCompletion", "MISC"] {
+            s { EinstellungsFenster.gemeinsam.zeigeSeite(kennung: kennung) }
+            s {
+                if let w = EinstellungsFenster.gemeinsam.window { bild(von: w, nach: ordner.appendingPathComponent("optionen-\(kennung).png")) }
+            }
+        }
+        s {
+            if let w = EinstellungsFenster.gemeinsam.window { _ = fensterTaste("\u{1b}", 53, in: w) }
+            pruefe(EinstellungsFenster.gemeinsam.window?.isVisible == false, "Esc schliesst «Optionen»")
+        }
+        // Seitenleisten: Reiter unten wechseln, ✕ schliesst.
+        var geschlossen: Seitenleiste?
+        s {
+            Einstellungen.funktionslisteSichtbar = true
+            Einstellungen.miniaturansichtSichtbar = true
+        }
+        s {
+            let dock = h.rechterDock
+            pruefe(dock.leisten.count == 2, "Rechts zwei Leisten in einem Dock")
+            let vorher = dock.aktiv
+            if let reiter = dock.subviews.compactMap({ $0 as? DockReiter }).first {
+                let andere = dock.leisten.firstIndex { $0 !== vorher } ?? 0
+                let p = reiter.mitteFuerProbe(andere)
+                klick(reiter, p)
+                pruefe(dock.aktiv !== vorher, "Klick auf den Reiter unten wechselt die Leiste")
+            }
+            if let a = dock.aktiv, let zu = alleKnoepfe(a).first(where: { $0.title == "✕" }) {
+                geschlossen = a
+                pruefe(klick(zu, mitte(zu)) === zu, "Klick trifft das ✕ von «\(a.titel)»")
+            }
+        }
+        s {
+            // Die Einstellung wirkt über eine Benachrichtigung, also einen Augenblick später.
+            if let a = geschlossen { pruefe(!h.rechterDock.enthaelt(a), "✕ schliesst «\(a.titel)»") }
+            Einstellungen.funktionslisteSichtbar = false
+            Einstellungen.miniaturansichtSichtbar = false
+        }
+        s {
+            bericht(fehlerzahl == 0 ? "ERGEBNIS: alles bestanden" : "ERGEBNIS: \(fehlerzahl) Fehler")
+        }
+        func fuehreAus(_ i: Int) {
+            guard i < schritte.count else { return fertig() }
+            notiere("· schritt \(i)")
+            schritte[i]()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { fuehreAus(i + 1) }
+        }
+        fuehreAus(0)
+    }
+
+    private static func alleAnsichten(_ v: NSView) -> [NSView] { [v] + v.subviews.flatMap(alleAnsichten) }
+    private static func alleKnoepfe(_ v: NSView) -> [NSButton] { alleAnsichten(v).compactMap { $0 as? NSButton } }
 
     /// JSON Viewer, XML Tools, MIME Tools und Converter am vordersten Dokument.
     private static func plugins(ordner: URL, bericht: @escaping (String) -> Void, fertig: @escaping () -> Void) {

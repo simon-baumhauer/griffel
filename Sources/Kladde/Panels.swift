@@ -58,6 +58,9 @@ final class Dock: NSView {
         reiter.frame = NSRect(x: 0, y: bounds.height - h, width: bounds.width, height: h)
         aktiv?.translatesAutoresizingMaskIntoConstraints = true
         aktiv?.frame = NSRect(x: 0, y: 0, width: bounds.width, height: bounds.height - h)
+        // Gleich durchlegen: Sonst stehen Kopfzeile und ✕ einer eben gewählten Leiste
+        // bis zum nächsten Zeichnen noch an alter Stelle und ein schneller Klick ginge daneben.
+        aktiv?.layoutSubtreeIfNeeded()
         reiter.needsDisplay = true
     }
 
@@ -88,6 +91,8 @@ final class DockReiter: NSView {
         let p = convert(event.locationInWindow, from: nil)
         if let i = rechtecke().firstIndex(where: { $0.contains(p) }), i != gewaehlt { gewaehlt = i; gewechselt?(i) }
     }
+
+    func mitteFuerProbe(_ i: Int) -> NSPoint { let r = rechtecke()[i]; return NSPoint(x: r.midX, y: r.midY) }
 
     override func draw(_ dirtyRect: NSRect) {
         let d = Hauptfenster.istDunkel

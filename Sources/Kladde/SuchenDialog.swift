@@ -159,7 +159,8 @@ final class SuchenDialog: NSWindowController, NSWindowDelegate {
 
     /// Öffnet den Dialog auf einem Reiter; die Auswahl im Editor wird zum Suchtext.
     func zeige(_ r: Reiter, ordner: String? = nil) {
-        if let e = Hauptfenster.gemeinsam.aktiv, let text = e.text(e.auswahl), !text.isEmpty, !text.contains("\n"), text.count < 200 {
+        if Einstellungen.suchfeldAusAuswahl, let e = Hauptfenster.gemeinsam.aktiv, let text = e.text(e.auswahl), !text.isEmpty,
+           !text.contains("\n"), text.count < 200 {
             var o = SuchZustand.gemeinsam.optionen
             o.text = text
             SuchZustand.gemeinsam.optionen = o
@@ -170,6 +171,10 @@ final class SuchenDialog: NSWindowController, NSWindowDelegate {
         if window?.isVisible != true, let haupt = Hauptfenster.gemeinsam.window {
             let f = window!.frame
             window?.setFrameOrigin(NSPoint(x: haupt.frame.midX - f.width / 2, y: haupt.frame.midY - f.height / 2 + 60))
+        }
+        // «Festbreitenschrift im Dialogfeld 'Suchen' verwenden».
+        for id in ["IDFINDWHAT", "IDREPLACEWITH"] {
+            kombi(id)?.feld.font = Einstellungen.suchenFestbreite ? .monospacedSystemFont(ofSize: 11, weight: .regular) : Win.schrift
         }
         // Hell oder dunkel kann sich seit dem letzten Mal geändert haben.
         window?.backgroundColor = Win.grund
@@ -390,6 +395,13 @@ final class SuchenDialog: NSWindowController, NSWindowDelegate {
             auftrag, ersetzen: ersetzen, bestaetigt: bestaetigt, fenster: window ?? Hauptfenster.gemeinsam.window,
             meldung: { [weak self] text, fehler in self?.zeigeStatus(Suchaktion.Antwort(text: text, fehler: fehler)) },
             fertig: fertig)
+    }
+
+    /// Für die Selbstprüfung: Suchtext wie getippt.
+    func setzeSuchtextFuerProbe(_ t: String, ersetzung: String? = nil) {
+        kombi("IDFINDWHAT")?.stringValue = t
+        if let ersetzung { kombi("IDREPLACEWITH")?.stringValue = ersetzung }
+        uebertrage()
     }
 
     /// Für die Selbstprüfung.

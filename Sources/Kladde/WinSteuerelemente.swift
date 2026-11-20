@@ -29,7 +29,8 @@ enum Win {
 
     static func zeichne(_ titel: String, in r: NSRect, farbe: NSColor, mitte: Bool = false, umbruch: Bool = false) {
         // «&» kennzeichnet unter Windows die Zugriffstaste; auf dem Mac fällt es weg.
-        let t = titel.replacingOccurrences(of: "&&", with: "\u{1}").replacingOccurrences(of: "&", with: "").replacingOccurrences(of: "\u{1}", with: "&")
+        // Zugriffstasten («&») hat scripts/oberflaeche.py schon entfernt; ein «&» hier ist echt.
+        let t = titel
         let passt = (t as NSString).size(withAttributes: [.font: schrift]).width <= r.width
         let absatz = NSMutableParagraphStyle()
         absatz.alignment = mitte ? .center : .left
@@ -246,7 +247,7 @@ final class WinKombi: NSView, NSTextFieldDelegate {
 final class WinGruppe: NSView {
     let titel: String
     init(titel: String) {
-        self.titel = titel.replacingOccurrences(of: "&", with: "")
+        self.titel = titel
         super.init(frame: .zero)
     }
 
@@ -272,20 +273,28 @@ final class WinGruppe: NSView {
 /// Eine Beschriftung in Windows-Farbe.
 final class WinText: NSTextField {
     convenience init(_ titel: String, rechts: Bool) {
-        self.init(labelWithString: titel.replacingOccurrences(of: "&", with: ""))
+        self.init(labelWithString: titel)
         font = Win.schrift
         alignment = rechts ? .right : .left
         lineBreakMode = .byClipping
         textColor = Win.text
     }
 
+    /// Mehrzeilig: oben beginnend, am Wortende umgebrochen (LTEXT über mehrere Zeilen).
+    var mehrzeilig = false
+
     /// Selbst gezeichnet wie die Beschriftung der Kästchen, damit alle Texte
     /// im Dialog gleich aussehen (NSTextField setzt dünne Schrift sonst kräftiger).
     override func draw(_ dirtyRect: NSRect) {
         let absatz = NSMutableParagraphStyle()
         absatz.alignment = alignment
-        absatz.lineBreakMode = .byTruncatingTail
+        absatz.lineBreakMode = mehrzeilig ? .byWordWrapping : .byTruncatingTail
         let a: [NSAttributedString.Key: Any] = [.font: font ?? Win.schrift, .foregroundColor: textColor ?? Win.text, .paragraphStyle: absatz]
+        if mehrzeilig {
+            (stringValue as NSString).draw(with: NSRect(x: 2, y: 0, width: bounds.width - 4, height: bounds.height),
+                                          options: [.usesLineFragmentOrigin, .truncatesLastVisibleLine], attributes: a)
+            return
+        }
         let h = (stringValue as NSString).size(withAttributes: a).height
         (stringValue as NSString).draw(in: NSRect(x: 2, y: (bounds.height - h) / 2, width: bounds.width - 4, height: h), withAttributes: a)
     }

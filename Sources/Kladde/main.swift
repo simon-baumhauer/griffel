@@ -15,9 +15,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        // Auch ein Absturz verliert höchstens die letzten Sekunden.
-        zwischensicherung = Timer.scheduledTimer(withTimeInterval: 10, repeats: true) { _ in
-            Sitzung.sichere()
+        // Auch ein Absturz verliert höchstens die letzten Sekunden («Sitzungen zeitgesteuert speichern»).
+        planeZwischensicherung()
+        NotificationCenter.default.addObserver(forName: Einstellungen.geaendert, object: nil, queue: .main) { [weak self] _ in
+            self?.planeZwischensicherung()
         }
         Hauptfenster.gemeinsam.showWindow(nil)
         Probe.starteFallsVerlangt()
@@ -26,6 +27,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
         Hauptfenster.gemeinsam.showWindow(nil)
         return true
+    }
+
+    private var geplanteSekunden = 0
+
+    private func planeZwischensicherung() {
+        let sekunden = Einstellungen.zwischensicherung && Einstellungen.sitzungMerken ? Einstellungen.zwischensicherungSekunden : 0
+        guard sekunden != geplanteSekunden else { return }
+        geplanteSekunden = sekunden
+        zwischensicherung?.invalidate()
+        zwischensicherung = sekunden == 0 ? nil : Timer.scheduledTimer(withTimeInterval: TimeInterval(sekunden), repeats: true) { _ in
+            Sitzung.sichere()
+        }
     }
 
     /// Auch ohne ungesicherte Dokumente: Dann fragt macOS gar nicht erst nach

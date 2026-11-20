@@ -168,7 +168,10 @@ extension Hauptfenster {
         get { Self.postItZustand }
         set {
             Self.postItZustand = newValue
-            for v in [werkzeugleiste, tableiste, statusleiste] as [NSView] { v.isHidden = newValue }
+            // Nach Post-it gelten wieder die Optionen (Leisten ausblenden).
+            werkzeugleiste.isHidden = newValue || Einstellungen.symbolleisteAusblenden
+            tableiste.isHidden = newValue || Einstellungen.tabsAusblenden
+            statusleiste.isHidden = newValue || Einstellungen.statusleisteAusblenden
             window?.level = newValue ? .floating : .normal
         }
     }
@@ -178,7 +181,10 @@ extension Hauptfenster {
         get { Self.freiZustand }
         set {
             Self.freiZustand = newValue
-            for v in [werkzeugleiste, tableiste, statusleiste] as [NSView] { v.isHidden = newValue }
+            // Nach Post-it gelten wieder die Optionen (Leisten ausblenden).
+            werkzeugleiste.isHidden = newValue || Einstellungen.symbolleisteAusblenden
+            tableiste.isHidden = newValue || Einstellungen.tabsAusblenden
+            statusleiste.isHidden = newValue || Einstellungen.statusleisteAusblenden
             if (window?.styleMask.contains(.fullScreen) ?? false) != newValue { window?.toggleFullScreen(nil) }
         }
     }

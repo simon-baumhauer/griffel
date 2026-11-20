@@ -10,8 +10,11 @@ Autovervollständigung kommen ebenfalls von dort. Die Oberfläche ist in Swift m
 und sieht aus wie die von Notepad++: ein Fenster mit der Werkzeugleiste und ihren Original-Symbolen,
 die Tableiste mit Heften und Schliessen, die Menüs mit allen Befehlen und den Texten der deutschen
 Übersetzung (nicht umgesetzte stehen ausgegraut), der Suchen-Dialog mit seinen vier Reitern, die
-Dialoge Gehe zu, Ausführen, Block-Editor, Makro mehrfach, Hashwert und Optionen im Windows-Stil von
-Notepad++ (Aufbau aus dessen .rc-Dateien), die Seitenleisten mit Reitern unten und die Statusleiste. Nur Fensterrahmen und Menüleiste oben sind vom Mac. Für Apple
+Dialoge Gehe zu, Ausführen, Block-Editor, Makro mehrfach, Hashwert und Speichern im Windows-Stil von
+Notepad++ (Aufbau aus dessen .rc-Dateien), die Seitenleisten mit Reitern unten und die Statusleiste.
+«Optionen» hat alle 23 Seiten von Notepad++; was Kladde einstellen kann, wirkt sofort (Tableiste,
+Symbolleiste, aktuelle Zeile, Cursor, Zeilenumbruch, Faltungsstil, senkrechte Kanten, Änderungshistorie,
+neue Dokumente, Einrückung, Hervorhebung, Autovervollständigung, Sitzung …), der Rest steht ausgegraut. Nur Fensterrahmen und Menüleiste oben sind vom Mac. Für Apple
 Silicon und Intel, ab macOS 13.
 
 ![Kladde mit einer Python-Datei, links die Dokumentenliste, rechts Funktionsliste und Miniaturansicht](docs/bilder/kladde.png)

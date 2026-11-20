@@ -1,6 +1,13 @@
 import AppKit
 import ScintillaBruecke
 
+extension NSView {
+    fileprivate func identifiziert(_ id: String) -> NSView {
+        identifier = NSUserInterfaceItemIdentifier(id)
+        return self
+    }
+}
+
 /// Ein einzeiliges oder mehrzeiliges Eingabefeld im Windows-Stil (EDITTEXT).
 final class WinEingabe: NSView, NSTextFieldDelegate, NSTextViewDelegate {
     private let feld: NSTextField?
@@ -60,6 +67,14 @@ final class WinEingabe: NSView, NSTextFieldDelegate, NSTextViewDelegate {
     }
 
     var ersterAntworter: NSView? { feld ?? textAnsicht }
+
+    /// Für die Selbstprüfung: wohin getippt wird (der Feldeditor eines einzeiligen Felds).
+    var textAnsichtOderFeldFuerProbe: NSTextView? {
+        if let t = textAnsicht { window?.makeFirstResponder(t); return t }
+        guard let f = feld, let w = window else { return nil }
+        w.makeFirstResponder(f)
+        return (w.firstResponder as? NSTextView) ?? (w.fieldEditor(false, for: f) as? NSTextView)
+    }
 
     override func layout() {
         super.layout()
@@ -141,40 +156,100 @@ final class WinAuswahl: NSView {
     }
 }
 
-/// Ein Dialog nach einer .rc-Beschreibung von Notepad++ (Oberflaeche.dialoge):
-/// dieselben Elemente an derselben Stelle, im Windows-Stil, als Fenster über
-/// dem Hauptfenster. Die Logik setzt der Aufrufer über `gedrueckt` und die
-/// Zugriffe auf die Elemente.
-final class WinDialog: NSObject, NSWindowDelegate {
-    let fenster: NSPanel
+/// Eine Liste wie die ListBox von Windows: weiss, Auswahl blau hinterlegt.
+final class WinListe: NSView {
+    var eintraege: [String] = [] { didSet { needsDisplay = true } }
+    var gewaehlt = 0 { didSet { needsDisplay = true } }
+    var gewechselt: ((Int) -> Void)?
+    var isEnabled = true { didSet { needsDisplay = true } }
+    override var isFlipped: Bool { true }
+    private let zeile: CGFloat = 18
+    private var oben = 0
+
+    override func draw(_ dirtyRect: NSRect) {
+        let d = Win.dunkel
+        Win.rechteck(bounds, fuell: isEnabled ? Win.feld : Win.grund, rand: NSColor(rgb: d ? 0x646464 : 0x828790))
+        let sichtbar = Int((bounds.height - 4) / zeile)
+        oben = min(max(0, oben), max(0, eintraege.count - sichtbar))
+        if gewaehlt < oben { oben = gewaehlt } else if gewaehlt >= oben + sichtbar { oben = gewaehlt - sichtbar + 1 }
+        NSGraphicsContext.saveGraphicsState()
+        NSBezierPath(rect: bounds.insetBy(dx: 1, dy: 1)).addClip()
+        for i in oben..<min(eintraege.count, oben + sichtbar + 1) {
+            let r = NSRect(x: 1, y: 2 + CGFloat(i - oben) * zeile, width: bounds.width - 2, height: zeile)
+            let an = i == gewaehlt
+            if an {
+                (isEnabled ? Win.akzent : NSColor(rgb: d ? 0x454545 : 0xCCCCCC)).setFill()
+                r.fill()
+            }
+            let farbe: NSColor = !isEnabled ? Win.textAus : an ? .white : Win.text
+            Win.zeichne(eintraege[i], in: NSRect(x: r.minX + 4, y: r.minY, width: r.width - 8, height: r.height), farbe: farbe)
+        }
+        NSGraphicsContext.restoreGraphicsState()
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        guard isEnabled else { return }
+        window?.makeFirstResponder(self)
+        let p = convert(event.locationInWindow, from: nil)
+        let i = oben + Int((p.y - 2) / zeile)
+        guard eintraege.indices.contains(i), i != gewaehlt else { return }
+        gewaehlt = i
+        gewechselt?(i)
+    }
+
+    override func scrollWheel(with event: NSEvent) {
+        oben -= Int(event.scrollingDeltaY / 6)
+        needsDisplay = true
+    }
+
+    override var acceptsFirstResponder: Bool { isEnabled }
+
+    override func keyDown(with event: NSEvent) {
+        switch event.keyCode {
+        case 125 where gewaehlt < eintraege.count - 1: gewaehlt += 1; gewechselt?(gewaehlt)
+        case 126 where gewaehlt > 0: gewaehlt -= 1; gewechselt?(gewaehlt)
+        default: super.keyDown(with: event)
+        }
+    }
+}
+
+/// Baut Elemente einer .rc-Beschreibung von Notepad++ als Windows-Steuerelemente
+/// in eine Fläche: Dialogeinheiten umgerechnet, Optionsfelder in Gruppen wie unter
+/// Windows (eine Gruppe beginnt mit WS_GROUP), Beschriftungen enden vor dem
+/// nächsten Element derselben Zeile.
+final class WinFormular: NSObject {
+    static let sx: CGFloat = 1.62
+    static let sy: CGFloat = 1.78
+
     private(set) var elemente: [String: NSView] = [:]
     /// Optionsfelder, die sich gegenseitig ausschliessen.
     var gruppen: [[String]] = []
-    /// Ein Knopf (Kennung wie IDOK) oder ein Kästchen wurde gedrückt.
+    /// Ein Knopf, ein Kästchen, ein Regler, eine Liste oder ein Feld hat sich geändert.
     var gedrueckt: ((String) -> Void)?
-    private static var offen: [WinDialog] = []
 
-    private static let sx: CGFloat = 1.62
-    private static let sy: CGFloat = 1.78
-
-    init?(_ schluessel: String) {
-        guard let d = Oberflaeche.gemeinsam.dialoge?[schluessel] else { return nil }
-        let breite = CGFloat(d.groesse[0]) * Self.sx + 4
-        let hoehe = CGFloat(d.groesse[1]) * Self.sy + 4
-        fenster = NSPanel(contentRect: NSRect(x: 0, y: 0, width: breite, height: hoehe), styleMask: [.titled, .closable],
-                          backing: .buffered, defer: true)
-        fenster.title = d.titel
-        fenster.isReleasedWhenClosed = false
-        fenster.isRestorable = false
-        fenster.backgroundColor = Win.grund
-        super.init()
-        fenster.delegate = self
-        let flaeche = WinFlaeche(frame: NSRect(x: 0, y: 0, width: breite, height: hoehe))
-        fenster.contentView = flaeche
-        for e in d.elemente { baue(e, in: flaeche) }
-        // Kästchen und Texte enden vor dem nächsten Element derselben Zeile
-        // (die Mac-Schrift ist breiter; sonst läge die Beschriftung darunter).
-        let alle = Array(elemente.values).filter { !($0 is WinGruppe) }
+    func baue(_ liste: [Oberflaeche.Element], in flaeche: NSView, ursprung: NSPoint = .zero) {
+        var neu: [NSView] = []
+        var gruppe: [String]?
+        for e in liste {
+            if e.art == "RADIO" {
+                if (e.stil ?? "").contains("WS_GROUP") || gruppe == nil {
+                    if let g = gruppe, g.count > 1 { gruppen.append(g) }
+                    gruppe = [e.id]
+                } else {
+                    gruppe?.append(e.id)
+                }
+            } else if (e.stil ?? "").contains("WS_GROUP"), let g = gruppe {
+                if g.count > 1 { gruppen.append(g) }
+                gruppe = nil
+            }
+            if let v = element(e, ursprung: ursprung) {
+                if e.art == "GROUPBOX" { flaeche.addSubview(v, positioned: .below, relativeTo: nil) } else { flaeche.addSubview(v) }
+                elemente[e.id] = v
+                neu.append(v)
+            }
+        }
+        if let g = gruppe, g.count > 1 { gruppen.append(g) }
+        let alle = neu.filter { !($0 is WinGruppe) }
         for v in alle where v is WinKaestchen || v is WinText {
             let rechts = alle.filter { $0 !== v && $0.frame.minX > v.frame.minX + 10 && $0.frame.minX < v.frame.maxX
                 && $0.frame.maxY > v.frame.minY + 3 && $0.frame.minY < v.frame.maxY - 3 }.map(\.frame.minX).min()
@@ -182,11 +257,12 @@ final class WinDialog: NSObject, NSWindowDelegate {
         }
     }
 
-    private func rechteck(_ e: Oberflaeche.Element, hoehe: CGFloat? = nil) -> NSRect {
-        NSRect(x: CGFloat(e.x) * Self.sx + 2, y: CGFloat(e.y) * Self.sy + 2, width: CGFloat(e.b) * Self.sx, height: hoehe ?? CGFloat(e.h) * Self.sy)
+    private func rechteck(_ e: Oberflaeche.Element, _ u: NSPoint, hoehe: CGFloat? = nil) -> NSRect {
+        NSRect(x: (CGFloat(e.x) + u.x) * Self.sx + 2, y: (CGFloat(e.y) + u.y) * Self.sy + 2,
+               width: CGFloat(e.b) * Self.sx, height: hoehe ?? CGFloat(e.h) * Self.sy)
     }
 
-    private func baue(_ e: Oberflaeche.Element, in flaeche: NSView) {
+    private func element(_ e: Oberflaeche.Element, ursprung u: NSPoint) -> NSView? {
         let text = Mac.text(e.text)
         let stil = e.stil ?? ""
         let v: NSView
@@ -194,8 +270,17 @@ final class WinDialog: NSObject, NSWindowDelegate {
         case "LTEXT", "RTEXT", "CTEXT":
             let t = WinText(text, rechts: e.art == "RTEXT")
             if e.art == "CTEXT" { t.alignment = .center }
+            if text == "(?)" { t.textColor = Win.akzent }
             v = t
-            var r = rechteck(e, hoehe: 18).offsetBy(dx: 0, dy: -3)
+            // Ab zwei Zeilen Höhe (16 Dialogeinheiten) mehrzeilig, sonst einzeilig mittig.
+            if e.h >= 16 {
+                t.mehrzeilig = true
+                v.frame = rechteck(e, u)
+                return v.identifiziert(e.id)
+            }
+            var r = rechteck(e, u, hoehe: 18).offsetBy(dx: 0, dy: -3)
+            // «(?)» ist in den .rc-Dateien nur 10 Einheiten breit; die Mac-Schrift braucht etwas mehr.
+            if text == "(?)" { r.size.width = max(r.width, 20) }
             if e.art == "RTEXT" { r = NSRect(x: max(2, r.minX - 14), y: r.minY, width: r.maxX - max(2, r.minX - 14), height: r.height) }
             v.frame = r
         case "EDITTEXT":
@@ -204,7 +289,7 @@ final class WinDialog: NSObject, NSWindowDelegate {
             f.nurLesen = stil.contains("READONLY")
             f.geaendert = { [weak self] in self?.gedrueckt?(e.id) }
             v = f
-            v.frame = mehr ? rechteck(e) : rechteck(e, hoehe: 23).offsetBy(dx: 0, dy: -2)
+            v.frame = mehr ? rechteck(e, u) : rechteck(e, u, hoehe: 23).offsetBy(dx: 0, dy: -2)
         case "COMBOBOX":
             if stil.contains("DROPDOWNLIST") || e.liste != nil {
                 let a = WinAuswahl()
@@ -216,7 +301,18 @@ final class WinDialog: NSObject, NSWindowDelegate {
                 k.geaendert = { [weak self] in self?.gedrueckt?(e.id) }
                 v = k
             }
-            v.frame = rechteck(e, hoehe: 23).offsetBy(dx: 0, dy: -2)
+            v.frame = rechteck(e, u, hoehe: 23).offsetBy(dx: 0, dy: -2)
+        case "LISTBOX":
+            let l = WinListe()
+            l.gewechselt = { [weak self] _ in self?.gedrueckt?(e.id) }
+            v = l
+            v.frame = rechteck(e, u)
+        case "SLIDER":
+            let s = WinRegler()
+            s.target = self
+            s.action = #selector(geregelt(_:))
+            v = s
+            v.frame = rechteck(e, u, hoehe: 22).offsetBy(dx: 0, dy: -3)
         case "PUSHBUTTON":
             let k = WinKnopf()
             k.title = text
@@ -227,20 +323,18 @@ final class WinDialog: NSObject, NSWindowDelegate {
             if k.istStandard { k.keyEquivalent = "\r" }
             if e.id == "IDCANCEL" { k.keyEquivalent = "\u{1b}" }
             v = k
-            v.frame = e.h > 15 ? rechteck(e) : rechteck(e, hoehe: 25).offsetBy(dx: 0, dy: -1)
+            v.frame = e.h > 15 ? rechteck(e, u) : rechteck(e, u, hoehe: 25).offsetBy(dx: 0, dy: -1)
         case "CHECKBOX", "RADIO":
             let k = WinKaestchen(titel: text, rund: e.art == "RADIO", target: self, action: #selector(knopf(_:)))
             v = k
-            v.frame = rechteck(e, hoehe: 18).offsetBy(dx: 0, dy: -3)
+            v.frame = rechteck(e, u, hoehe: 18).offsetBy(dx: 0, dy: -3)
         case "GROUPBOX":
             v = WinGruppe(titel: text)
-            v.frame = rechteck(e).offsetBy(dx: 0, dy: -4)
+            v.frame = rechteck(e, u).offsetBy(dx: 0, dy: -4)
         default:
-            return
+            return nil
         }
-        v.identifier = NSUserInterfaceItemIdentifier(e.id)
-        if e.art == "GROUPBOX" { flaeche.addSubview(v, positioned: .below, relativeTo: nil) } else { flaeche.addSubview(v) }
-        elemente[e.id] = v
+        return v.identifiziert(e.id)
     }
 
     @objc private func knopf(_ sender: NSButton) {
@@ -248,7 +342,11 @@ final class WinDialog: NSObject, NSWindowDelegate {
         if let gruppe = gruppen.first(where: { $0.contains(id) }) {
             for g in gruppe { setzeHaken(g, g == id) }
         }
-        if id == "IDCANCEL" { return schliesse() }
+        gedrueckt?(id)
+    }
+
+    @objc private func geregelt(_ sender: WinRegler) {
+        guard let id = sender.identifier?.rawValue else { return }
         gedrueckt?(id)
     }
 
@@ -261,7 +359,7 @@ final class WinDialog: NSObject, NSWindowDelegate {
     func setzeText(_ id: String, _ t: String) {
         if let f = elemente[id] as? WinEingabe { f.stringValue = t }
         else if let f = elemente[id] as? WinKombi { f.stringValue = t }
-        else if let f = elemente[id] as? NSTextField { f.stringValue = t }
+        else if let f = elemente[id] as? NSTextField { f.stringValue = t; f.needsDisplay = true }
         else if let k = elemente[id] as? NSButton { k.title = t }
     }
 
@@ -271,12 +369,74 @@ final class WinDialog: NSObject, NSWindowDelegate {
     func auswahl(_ id: String) -> WinAuswahl? { elemente[id] as? WinAuswahl }
     func kombi(_ id: String) -> WinKombi? { elemente[id] as? WinKombi }
     func eingabe(_ id: String) -> WinEingabe? { elemente[id] as? WinEingabe }
+    func regler(_ id: String) -> WinRegler? { elemente[id] as? WinRegler }
+    func liste(_ id: String) -> WinListe? { elemente[id] as? WinListe }
 
     func aktiv(_ id: String, _ an: Bool) {
         if let c = elemente[id] as? NSControl { c.isEnabled = an }
         (elemente[id] as? WinAuswahl)?.isEnabled = an
+        (elemente[id] as? WinListe)?.isEnabled = an
         (elemente[id] as? WinEingabe)?.nurLesen = !an
+        if let k = elemente[id] as? WinKombi { k.feld.isEnabled = an; k.alphaValue = an ? 1 : 0.6 }
     }
+
+    func istAktiv(_ id: String) -> Bool {
+        if let c = elemente[id] as? NSControl { return c.isEnabled }
+        if let a = elemente[id] as? WinAuswahl { return a.isEnabled }
+        if let l = elemente[id] as? WinListe { return l.isEnabled }
+        if let f = elemente[id] as? WinEingabe { return !f.nurLesen }
+        return true
+    }
+}
+
+/// Ein Dialog nach einer .rc-Beschreibung von Notepad++ (Oberflaeche.dialoge):
+/// dieselben Elemente an derselben Stelle, im Windows-Stil, als Fenster über
+/// dem Hauptfenster. Die Logik setzt der Aufrufer über `gedrueckt` und die
+/// Zugriffe auf die Elemente.
+final class WinDialog: NSObject, NSWindowDelegate {
+    let fenster: NSPanel
+    let formular = WinFormular()
+    var elemente: [String: NSView] { formular.elemente }
+    /// Zusätzliche Gruppen von Optionsfeldern (die aus der .rc-Datei kennt das Formular selbst).
+    var gruppen: [[String]] {
+        get { formular.gruppen }
+        set { formular.gruppen = newValue + formular.gruppen.filter { g in !newValue.contains { !Set($0).isDisjoint(with: g) } } }
+    }
+    /// Ein Knopf (Kennung wie IDOK) oder ein Kästchen wurde gedrückt; «Abbrechen» schliesst selbst.
+    var gedrueckt: ((String) -> Void)?
+    private static var offen: [WinDialog] = []
+
+    init?(_ schluessel: String) {
+        guard let d = Oberflaeche.gemeinsam.dialoge?[schluessel] else { return nil }
+        let breite = CGFloat(d.groesse[0]) * WinFormular.sx + 4
+        let hoehe = CGFloat(d.groesse[1]) * WinFormular.sy + 4
+        fenster = NSPanel(contentRect: NSRect(x: 0, y: 0, width: breite, height: hoehe), styleMask: [.titled, .closable],
+                          backing: .buffered, defer: true)
+        fenster.title = d.titel
+        fenster.isReleasedWhenClosed = false
+        fenster.isRestorable = false
+        fenster.backgroundColor = Win.grund
+        super.init()
+        fenster.delegate = self
+        let flaeche = WinFlaeche(frame: NSRect(x: 0, y: 0, width: breite, height: hoehe))
+        fenster.contentView = flaeche
+        formular.baue(d.elemente, in: flaeche)
+        formular.gedrueckt = { [weak self] id in
+            if id == "IDCANCEL" { self?.schliesse() } else { self?.gedrueckt?(id) }
+        }
+    }
+
+    // MARK: Zugriff (wie im Formular)
+
+    func text(_ id: String) -> String { formular.text(id) }
+    func setzeText(_ id: String, _ t: String) { formular.setzeText(id, t) }
+    func haken(_ id: String) -> Bool { formular.haken(id) }
+    func setzeHaken(_ id: String, _ an: Bool) { formular.setzeHaken(id, an) }
+    func zahl(_ id: String) -> Int? { formular.zahl(id) }
+    func auswahl(_ id: String) -> WinAuswahl? { formular.auswahl(id) }
+    func kombi(_ id: String) -> WinKombi? { formular.kombi(id) }
+    func eingabe(_ id: String) -> WinEingabe? { formular.eingabe(id) }
+    func aktiv(_ id: String, _ an: Bool) { formular.aktiv(id, an) }
 
     // MARK: Zeigen
 
@@ -296,7 +456,28 @@ final class WinDialog: NSObject, NSWindowDelegate {
         }
     }
 
+    private var modal = false
+    private var modalErgebnis = "IDCANCEL"
+
+    /// Modal wie ein Dialog von Windows: Kehrt mit der Kennung des gedrückten Knopfs
+    /// zurück (IDCANCEL bei Esc oder Schliessen).
+    func zeigeModal(fokus: String? = nil) -> String {
+        let vorher = gedrueckt
+        gedrueckt = { [weak self] id in
+            vorher?(id)
+            guard let self, ["IDOK", "IDYES", "IDNO", "IDRETRY", "IDIGNORE", "IDABORT"].contains(id) else { return }
+            self.modalErgebnis = id
+            self.schliesse()
+        }
+        modal = true
+        modalErgebnis = "IDCANCEL"
+        zeige(fokus: fokus)
+        NSApp.runModal(for: fenster)
+        return modalErgebnis
+    }
+
     func schliesse() {
+        if modal { modal = false; NSApp.stopModal() }
         fenster.parent?.removeChildWindow(fenster)
         fenster.orderOut(nil)
         Self.offen.removeAll { $0 === self }
@@ -304,15 +485,29 @@ final class WinDialog: NSObject, NSWindowDelegate {
     }
 
     func windowWillClose(_ notification: Notification) {
+        if modal { modal = false; NSApp.stopModal() }
         fenster.parent?.removeChildWindow(fenster)
         Self.offen.removeAll { $0 === self }
     }
+
+    /// Der oberste offene Dialog (für die Selbstprüfung).
+    static var oberster: WinDialog? { offen.last }
 }
 
 // MARK: - Die Dialoge
 
 enum Dialoge {
     private static let ablage = UserDefaults.standard
+
+    /// «Speichern» wie doSaveOrNot in Notepad++: Ja, Nein, Abbruch, bei mehreren
+    /// geänderten Dateien auch «Ja für alle» und «Nein für alle».
+    static func speichernFrage(_ d: Dokument, mehrere: Bool) -> String {
+        guard let w = WinDialog("speichern") else { return "IDNO" }
+        let name = d.fileURL?.path ?? d.tabTitel
+        w.setzeText("IDC_DOSAVEORNOTTEXT", w.text("IDC_DOSAVEORNOTTEXT").replacingOccurrences(of: "$STR_REPLACE$", with: name))
+        for id in ["IDRETRY", "IDIGNORE"] { w.elemente[id]?.isHidden = !mehrere }
+        return w.zeigeModal()
+    }
 
     /// «Gehe zu» (Strg+G): Zeile oder Zeichen.
     static func geheZu(_ e: Editor) {

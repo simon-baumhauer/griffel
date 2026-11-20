@@ -25,22 +25,26 @@ final class TabLeiste: NSView {
     var neu: () -> Void = {}
     var kontextmenue: (Int) -> NSMenu? = { _ in nil }
 
-    static let hoehe: CGFloat = 26
-    private let schrift = NSFont.systemFont(ofSize: 11.5)
+    /// Höhe der Leiste: Tabs 22 Pixel («Verkleinern», Vorgabe) oder 25, dazu Rand.
+    static var hoehe: CGFloat { Einstellungen.tabsVerkleinert ? 26 : 29 }
+    private var schrift: NSFont { .systemFont(ofSize: Einstellungen.tabsVerkleinert ? 11.5 : 12.5) }
     private var rechtecke: [NSRect] = []
     private var versatz: CGFloat = 0
     private var ueber: Int?
     private var ueberSchliessen = false
     private var ueberPin = false
     private var gedrueckt: Int?
+    private var pinGedrueckt: Int?
     private var ziehen: (index: Int, start: NSPoint, verschoben: Bool)?
     private var fokussiert = true
+    private var hoehenBedingung: NSLayoutConstraint!
 
     override var isFlipped: Bool { true }
 
     override init(frame: NSRect) {
         super.init(frame: frame)
-        heightAnchor.constraint(equalToConstant: Self.hoehe).isActive = true
+        hoehenBedingung = heightAnchor.constraint(equalToConstant: Self.hoehe)
+        hoehenBedingung.isActive = true
         setAccessibilityRole(.tabGroup)
         setAccessibilityLabel("Dateireiter")
         for name in [NSWindow.didBecomeKeyNotification, NSWindow.didResignKeyNotification] {
@@ -51,6 +55,14 @@ final class TabLeiste: NSView {
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("TabLeiste entsteht nur im Code") }
 
+    /// Nach einer Änderung in «Optionen → Dateireiter».
+    func einstellungenGeaendert() {
+        hoehenBedingung.constant = Self.hoehe
+        isHidden = Einstellungen.tabsAusblenden
+        needsDisplay = true
+        zeigeAktiven()
+    }
+
     @objc private func fensterFokus() {
         fokussiert = window?.isKeyWindow ?? true
         needsDisplay = true
@@ -59,38 +71,67 @@ final class TabLeiste: NSView {
     override func updateTrackingAreas() {
         super.updateTrackingAreas()
         trackingAreas.forEach(removeTrackingArea)
+        // Auch wenn ein Dialog vorne ist, reagiert die Leiste auf die Maus (wie unter Windows).
         addTrackingArea(NSTrackingArea(
-            rect: bounds, options: [.mouseMoved, .mouseEnteredAndExited, .activeInKeyWindow, .inVisibleRect],
+            rect: bounds, options: [.mouseMoved, .mouseEnteredAndExited, .activeInActiveApp, .inVisibleRect],
             owner: self))
     }
 
-    // MARK: Masse
+    // MARK: Masse (TabButtonZone::getButtonRectFrom)
 
     private static let symbol: CGFloat = 16
-    private static let knopf: CGFloat = 13
+    /// Knöpfe: hell 11, dunkel 16 Pixel (g_TabCloseBtnSize, g_TabCloseBtnSize_DM).
+    private var knopf: CGFloat { dunkel ? 16 : 11 }
+    /// Abstand zwischen Pin und Kreuz: hell 8, dunkel 4.
+    private var zwischen: CGFloat { dunkel ? 4 : 8 }
+    private var tabHoehe: CGFloat { Einstellungen.tabsVerkleinert ? 22 : 25 }
+    private var knopfZone: CGFloat {
+        let anzahl = (Einstellungen.tabSchliessen ? 1 : 0) + (Einstellungen.tabPin ? 1 : 0)
+        let rand = (tabHoehe - knopf + 1) / 2
+        return anzahl == 0 ? 6 : rand + CGFloat(anzahl) * knopf + CGFloat(anzahl - 1) * zwischen + 2
+    }
+
+    /// Der Name im Tab, gekürzt auf «Max. Länge von Tab-Namen».
+    private func beschriftung(_ tab: Tab) -> String {
+        let n = Einstellungen.tabNameMax
+        guard n > 0, tab.titel.count > n else { return tab.titel }
+        return String(tab.titel.prefix(n)) + "…"
+    }
 
     private func breite(_ tab: Tab) -> CGFloat {
-        let text = (tab.titel as NSString).size(withAttributes: [.font: schrift]).width
-        return ceil(6 + Self.symbol + 5 + text + 8 + Self.knopf + 3 + Self.knopf + 6)
+        let text = (beschriftung(tab) as NSString).size(withAttributes: [.font: schrift]).width
+        let rand = (tabHoehe - Self.symbol + 1) / 2
+        return ceil(rand + Self.symbol + 5 + text + 8 + knopfZone)
     }
 
     private func berechne() {
         var x: CGFloat = 2 - versatz
+        let h = tabHoehe
         rechtecke = tabs().map { tab in
             let b = breite(tab)
             defer { x += b }
-            return NSRect(x: x, y: 2, width: b, height: bounds.height - 2)
+            return NSRect(x: x, y: bounds.height - h - 1, width: b, height: h)
         }
     }
 
     private var ueberlauf: Bool { (rechtecke.last?.maxX ?? 0) + versatz > bounds.width - 2 }
 
     private func schliessRechteck(_ r: NSRect) -> NSRect {
-        NSRect(x: r.maxX - 6 - Self.knopf, y: r.midY - Self.knopf / 2 + 1, width: Self.knopf, height: Self.knopf)
+        let rand = (r.height - knopf + 1) / 2
+        return NSRect(x: r.maxX - rand - knopf, y: r.minY + rand, width: knopf, height: knopf)
     }
 
     private func pinRechteck(_ r: NSRect) -> NSRect {
-        schliessRechteck(r).offsetBy(dx: -(Self.knopf + 3), dy: 0)
+        // Ohne Kreuz rückt der Pin an seine Stelle (Reihenfolge 0).
+        Einstellungen.tabSchliessen ? schliessRechteck(r).offsetBy(dx: -(knopf + zwischen), dy: 0) : schliessRechteck(r)
+    }
+
+    private func trifftSchliessen(_ i: Int, _ p: NSPoint) -> Bool {
+        Einstellungen.tabSchliessen && schliessRechteck(rechtecke[i]).insetBy(dx: -2, dy: -2).contains(p)
+    }
+
+    private func trifftPin(_ i: Int, _ p: NSPoint) -> Bool {
+        Einstellungen.tabPin && pinRechteck(rechtecke[i]).insetBy(dx: -2, dy: -2).contains(p)
     }
 
     // MARK: Zeichnen
@@ -104,79 +145,85 @@ final class TabLeiste: NSView {
 
     override func draw(_ dirtyRect: NSRect) {
         berechne()
-        let flaeche = dunkel ? NSColor(rgb: 0x2B2B2B) : NSColor(rgb: 0xF0F0F0)
+        // Farben wie TabBarPlus::drawItem: hell COLOR_BTNFACE, dunkel die Töne von NppDarkMode.
+        let flaeche = dunkel ? NSColor(rgb: 0x202020) : NSColor(rgb: 0xF0F0F0)
         let aktivFlaeche = dunkel ? NSColor(rgb: 0x383838) : NSColor(rgb: 0xF0F0F0)
         flaeche.setFill()
         bounds.fill()
         let liste = tabs()
         let aktiv = aktiverIndex()
-        let inaktivFlaeche = dunkel ? NSColor(rgb: 0x2B2B2B) : farbe("Inactive tabs", \.hinten, 0xC0C0C0)
+        let inaktivFlaeche = !Einstellungen.tabInaktivFarbe ? aktivFlaeche
+            : dunkel ? NSColor(rgb: 0x202020) : farbe("Inactive tabs", \.hinten, 0xC0C0C0)
         let inaktivText = dunkel ? NSColor(rgb: 0xC0C0C0) : farbe("Inactive tabs", \.vorne, 0x808080)
         let aktivText = dunkel ? NSColor(rgb: 0xE0E0E0) : farbe("Active tab text", \.vorne, 0x000000)
         let balken = fokussiert
             ? farbe("Active tab focused indicator", \.vorne, 0xFAAA3C)
-            : farbe("Active tab unfocused indicator", \.vorne, 0xFFCAB0)
+            : farbe("Active tab unfocused indicator", \.vorne, 0xFAD296)
+        let linie = dunkel ? NSColor(rgb: 0x505050) : NSColor(rgb: 0xA0A0A0)
+
+        // Linie unter den Tabs; der aktive Tab überdeckt sie.
+        linie.setFill()
+        NSRect(x: 0, y: bounds.height - 1, width: bounds.width, height: 1).fill()
 
         for (i, tab) in liste.enumerated() where i < rechtecke.count {
             var r = rechtecke[i]
             guard r.maxX > 0, r.minX < bounds.width else { continue }
             let istAktiv = i == aktiv
+            let istUeber = ueber == i && ziehen == nil
             let eigene = tab.farbe.map { tabFarbe($0) }
             if istAktiv {
+                // Der aktive Tab ist 2 Pixel höher und deckt die Linie darunter.
+                r = NSRect(x: r.minX, y: r.minY - 2, width: r.width, height: r.height + 3)
                 aktivFlaeche.setFill()
                 r.fill()
-                (eigene ?? balken).setFill()
-                NSRect(x: r.minX, y: r.minY, width: r.width, height: 4).fill()
+                if Einstellungen.tabBalken {
+                    (eigene ?? balken).setFill()
+                    NSRect(x: r.minX, y: r.minY, width: r.width, height: 4).fill()
+                }
+                linie.setFill()
+                NSRect(x: r.minX, y: r.minY, width: 1, height: r.height - 1).fill()
+                NSRect(x: r.maxX - 1, y: r.minY, width: 1, height: r.height - 1).fill()
             } else {
-                r.origin.y += 2
-                r.size.height -= 2
                 var f = eigene ?? inaktivFlaeche
-                if ueber == i, ziehen == nil { f = f.blended(withFraction: 0.25, of: .white) ?? f }
+                // Überfahren hellt einen dunkleren inaktiven Tab etwas auf.
+                if istUeber { f = f.blended(withFraction: 0.3, of: dunkel ? .white : NSColor(rgb: 0xFFFFFF)) ?? f }
                 f.setFill()
-                r.insetBy(dx: 1, dy: 0).fill()
+                r.fill()
+                linie.setFill()
+                NSRect(x: r.maxX - 1, y: r.minY + 3, width: 1, height: r.height - 6).fill()
             }
-            // Trenner zwischen Tabs.
-            (dunkel ? NSColor(rgb: 0x505050) : NSColor(rgb: 0xA0A0A0)).setFill()
-            NSRect(x: r.maxX - 1, y: r.minY + 2, width: 1, height: r.height - 4).fill()
+            r.size.height = istAktiv ? r.height - 1 : r.height
 
-            // Symbol: gesichert (blau), geändert (rot), schreibgeschützt.
-            let name = tab.schreibgeschuetzt ? "readonly" : (tab.geaendert ? "unsaved" : "saved")
-            Symbole.tab(name, dunkel: dunkel)?.draw(
-                in: NSRect(x: r.minX + 6, y: r.midY - 8, width: 16, height: 16), from: .zero, operation: .sourceOver,
-                fraction: 1, respectFlipped: true, hints: nil)
+            // Symbol: gesichert, geändert, schreibgeschützt; inaktive Tabs leicht abgeblendet (ILD_SELECTED).
+            let alt = Einstellungen.tabAlternativeSymbole && !dunkel ? "_alt" : ""
+            let name = (tab.schreibgeschuetzt ? "readonly" : (tab.geaendert ? "unsaved" : "saved")) + alt
+            let rand = (rechtecke[i].height - Self.symbol + 1) / 2
+            let symbolRechteck = NSRect(x: r.minX + rand, y: rechtecke[i].minY + rand + (istAktiv ? -1 : 0), width: 16, height: 16)
+            if let bild = Symbole.tab(name, dunkel: dunkel) ?? Symbole.tab(String(name.dropLast(alt.count)), dunkel: dunkel) {
+                bild.draw(in: symbolRechteck, from: .zero, operation: .sourceOver, fraction: 1, respectFlipped: true, hints: nil)
+                if !istAktiv {
+                    Symbole.abgeblendet(bild).draw(in: symbolRechteck, from: .zero, operation: .sourceOver, fraction: 0.5,
+                                                   respectFlipped: true, hints: nil)
+                }
+            }
 
             let attribute: [NSAttributedString.Key: Any] = [.font: schrift, .foregroundColor: istAktiv ? aktivText : inaktivText]
-            let text = tab.titel as NSString
+            let text = beschriftung(tab) as NSString
             let groesse = text.size(withAttributes: attribute)
-            text.draw(at: NSPoint(x: r.minX + 6 + 16 + 5, y: r.midY - groesse.height / 2), withAttributes: attribute)
+            let textY = rechtecke[i].midY - groesse.height / 2 + (istAktiv && Einstellungen.tabBalken ? 0 : 0) + (istAktiv ? -1 : 0)
+            text.draw(at: NSPoint(x: symbolRechteck.maxX + 5, y: textY), withAttributes: attribute)
 
-            // Pin- und Schliessknopf (Bilder von Notepad++).
-            let pinName: String
-            if tab.angeheftet {
-                pinName = ueber == i && ueberPin ? "pinTabButton_pinnedHover" : "pinTabButton_pinned"
-            } else {
-                pinName = ueber == i && ueberPin ? "pinTabButton_hover" : "pinTabButton"
+            // Kreuz und Pin nach TabBarPlus::drawItem: auf dem aktiven Tab immer, auf
+            // inaktiven nur beim Überfahren (oder mit «Schaltflächen auf inaktiven Tabs»).
+            let zone = rechtecke[i].offsetBy(dx: 0, dy: istAktiv ? -1 : 0)
+            if Einstellungen.tabSchliessen, let n = schliessName(i, istAktiv: istAktiv, istUeber: istUeber) {
+                Symbole.tab(n, dunkel: dunkel)?.draw(in: schliessRechteck(zone), from: .zero, operation: .sourceOver,
+                                                    fraction: 1, respectFlipped: true, hints: nil)
             }
-            Symbole.tab(pinName, dunkel: dunkel)?.draw(
-                in: pinRechteck(r), from: .zero, operation: .sourceOver, fraction: istAktiv || ueber == i ? 1 : 0.6,
-                respectFlipped: true, hints: nil)
-            let schliessName: String
-            if ueber == i, ueberSchliessen {
-                schliessName = gedrueckt == i ? "closeTabButton_push" : "closeTabButton_hoverIn"
-            } else {
-                schliessName = ueber == i ? "closeTabButton_hoverOnTab" : "closeTabButton"
+            if Einstellungen.tabPin, let n = pinName(i, tab: tab, istAktiv: istAktiv, istUeber: istUeber) {
+                Symbole.tab(n, dunkel: dunkel)?.draw(in: pinRechteck(zone), from: .zero, operation: .sourceOver,
+                                                    fraction: 1, respectFlipped: true, hints: nil)
             }
-            Symbole.tab(schliessName, dunkel: dunkel)?.draw(
-                in: schliessRechteck(r), from: .zero, operation: .sourceOver, fraction: istAktiv || ueber == i ? 1 : 0.6,
-                respectFlipped: true, hints: nil)
-        }
-
-        // Linie unter den Tabs, ausser unter dem aktiven.
-        (dunkel ? NSColor(rgb: 0x505050) : NSColor(rgb: 0xA0A0A0)).setFill()
-        NSRect(x: 0, y: bounds.height - 1, width: bounds.width, height: 1).fill()
-        if let a = aktiv, a < rechtecke.count {
-            aktivFlaeche.setFill()
-            NSRect(x: rechtecke[a].minX, y: bounds.height - 1, width: rechtecke[a].width - 1, height: 1).fill()
         }
 
         // Pfeile bei zu vielen Tabs, wie das Windows-Steuerelement.
@@ -186,9 +233,28 @@ final class TabLeiste: NSView {
             pfeile.fill()
             for (j, zeichen) in ["◀", "▶"].enumerated() {
                 let a: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: 9), .foregroundColor: inaktivText]
-                (zeichen as NSString).draw(at: NSPoint(x: pfeile.minX + 4 + CGFloat(j) * 17, y: pfeile.minY + 4), withAttributes: a)
+                (zeichen as NSString).draw(at: NSPoint(x: pfeile.minX + 4 + CGFloat(j) * 17, y: pfeile.minY + 6), withAttributes: a)
             }
         }
+    }
+
+    /// Welches Kreuz (Notepad_plus.rc: IDR_CLOSETAB …): nil heisst keines.
+    private func schliessName(_ i: Int, istAktiv: Bool, istUeber: Bool) -> String? {
+        if istUeber, ueberSchliessen { return gedrueckt == i ? "closeTabButton_push" : "closeTabButton_hoverIn" }
+        if istAktiv { return "closeTabButton" }
+        if istUeber { return "closeTabButton_hoverOnTab" }
+        // IDR_CLOSETAB_INACT: hell das blasse, dunkel das normale Kreuz.
+        return Einstellungen.tabKnoepfeInaktiv ? (dunkel ? "closeTabButton" : "closeTabButton_hoverOnTab") : nil
+    }
+
+    /// Welcher Pin (IDR_PINTAB …): Überfahren zeigt, was ein Klick bewirkt.
+    private func pinName(_ i: Int, tab: Tab, istAktiv: Bool, istUeber: Bool) -> String? {
+        let aufPin = istUeber && ueberPin
+        if tab.angeheftet { return aufPin ? "pinTabButton" : "pinTabButton_pinned" }
+        if Einstellungen.tabNurAngeheftete && !aufPin { return nil }
+        if aufPin { return "pinTabButton_pinned" }
+        if istAktiv || istUeber || Einstellungen.tabKnoepfeInaktiv { return "pinTabButton" }
+        return nil
     }
 
     private func tabFarbe(_ n: Int) -> NSColor {
@@ -206,8 +272,8 @@ final class TabLeiste: NSView {
     override func mouseMoved(with event: NSEvent) {
         let p = convert(event.locationInWindow, from: nil)
         let i = index(bei: p)
-        let s = i.map { schliessRechteck(rechtecke[$0]).insetBy(dx: -2, dy: -2).contains(p) } ?? false
-        let pin = i.map { pinRechteck(rechtecke[$0]).insetBy(dx: -2, dy: -2).contains(p) } ?? false
+        let s = i.map { trifftSchliessen($0, p) } ?? false
+        let pin = i.map { trifftPin($0, p) } ?? false
         if i != ueber || s != ueberSchliessen || pin != ueberPin {
             ueber = i
             ueberSchliessen = s
@@ -219,6 +285,8 @@ final class TabLeiste: NSView {
 
     override func mouseExited(with event: NSEvent) {
         ueber = nil
+        ueberSchliessen = false
+        ueberPin = false
         needsDisplay = true
     }
 
@@ -233,22 +301,34 @@ final class TabLeiste: NSView {
             if event.clickCount == 2 { neu() }
             return
         }
-        if schliessRechteck(rechtecke[i]).insetBy(dx: -2, dy: -2).contains(p) {
+        if trifftSchliessen(i, p) {
             gedrueckt = i
             needsDisplay = true
             return
         }
-        if pinRechteck(rechtecke[i]).insetBy(dx: -2, dy: -2).contains(p) {
-            heften(i)
+        if trifftPin(i, p) {
+            pinGedrueckt = i
+            return
+        }
+        // «Tabs per Doppelklick schließen».
+        if event.clickCount == 2, Einstellungen.tabDoppelklickSchliesst {
+            schliesse(i)
             return
         }
         waehle(i)
-        ziehen = (i, p, false)
+        if !Einstellungen.tabsSperren { ziehen = (i, p, false) }
     }
 
     override func mouseDragged(with event: NSEvent) {
-        guard var z = ziehen else { return }
         let p = convert(event.locationInWindow, from: nil)
+        if gedrueckt != nil {
+            // Über dem Kreuz bleibt es gedrückt, daneben nicht (wie ein Windows-Knopf).
+            let vorher = ueberSchliessen
+            ueberSchliessen = gedrueckt.map { $0 < rechtecke.count && trifftSchliessen($0, p) } ?? false
+            if vorher != ueberSchliessen { needsDisplay = true }
+            return
+        }
+        guard var z = ziehen else { return }
         if abs(p.x - z.start.x) > 4 { z.verschoben = true }
         ziehen = z
         guard z.verschoben, let ziel = index(bei: NSPoint(x: p.x, y: rechtecke.first?.midY ?? 10)), ziel != z.index else { return }
@@ -261,7 +341,13 @@ final class TabLeiste: NSView {
         let p = convert(event.locationInWindow, from: nil)
         if let g = gedrueckt {
             gedrueckt = nil
-            if g < rechtecke.count, schliessRechteck(rechtecke[g]).insetBy(dx: -2, dy: -2).contains(p) { schliesse(g) }
+            needsDisplay = true
+            // Geschlossen wird erst beim Loslassen über dem Kreuz.
+            if g < rechtecke.count, trifftSchliessen(g, p) { schliesse(g) }
+        }
+        if let g = pinGedrueckt {
+            pinGedrueckt = nil
+            if g < rechtecke.count, trifftPin(g, p) { heften(g) }
             needsDisplay = true
         }
         ziehen = nil
@@ -269,7 +355,10 @@ final class TabLeiste: NSView {
 
     override func otherMouseUp(with event: NSEvent) {
         // Mittlere Taste schliesst, wie in Notepad++.
-        if event.buttonNumber == 2, let i = index(bei: convert(event.locationInWindow, from: nil)) { schliesse(i) }
+        // Ein Ereignis ohne Fenster trägt Bildschirmkoordinaten.
+        let p = event.window != nil || window == nil ? convert(event.locationInWindow, from: nil)
+            : convert(window!.convertPoint(fromScreen: event.locationInWindow), from: nil)
+        if event.buttonNumber == 2, let i = index(bei: p) { schliesse(i) }
     }
 
     override func menu(for event: NSEvent) -> NSMenu? {
@@ -317,6 +406,13 @@ final class TabLeiste: NSView {
     }
 
     private var rad: CGFloat = 0
+
+    // MARK: Für die Selbstprüfung (Probe.swift)
+
+    func rechteckFuerProbe(_ i: Int) -> NSRect { berechne(); return rechtecke[i] }
+    var aktiverIndexFuerProbe: Int? { aktiverIndex() }
+    func schliessRechteckFuerProbe(_ i: Int) -> NSRect { berechne(); return schliessRechteck(rechtecke[i]) }
+    func pinRechteckFuerProbe(_ i: Int) -> NSRect { berechne(); return pinRechteck(rechtecke[i]) }
 
     /// Den aktiven Tab ganz ins Bild holen.
     func zeigeAktiven() {

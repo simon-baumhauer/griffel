@@ -23,7 +23,7 @@ enum Sitzung {
     }
 
     /// Mit «-KladdeSitzung /pfad» beim Start liegt die Sitzung woanders (für Prüfläufe).
-    private static let ordner: URL = {
+    static let ordner: URL = {
         if let pfad = UserDefaults.standard.string(forKey: "KladdeSitzung") {
             return URL(fileURLWithPath: pfad, isDirectory: true)
         }

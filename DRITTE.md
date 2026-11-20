@@ -9,7 +9,7 @@ holt den Quellcode von Notepad++ beim ersten Bau auf einen festen Stand.
 | Lexilla | Neil Hodgson, über den Quellcode von Notepad++ | Scintilla-Lizenz (unten) | Syntaxfarben und Faltung |
 | `langs.model.xml`, `stylers.model.xml`, `installer/themes/`, `installer/APIs/`, `installer/functionList/` | Don Ho und die Mitwirkenden von Notepad++ | GPL v3 | Sprachen, Farbschemata, Autovervollständigung, Funktionsliste |
 | `src/icons/` (Werkzeugleiste, Tabs, Seitenleisten) | Don Ho und die Mitwirkenden von Notepad++ | GPL v3 | Symbole der Oberfläche |
-| `Notepad_plus.rc`, `Parameters.cpp`, `FindReplaceDlg.rc`, `installer/nativeLang/german.xml`, `tabContextMenu_example.xml` | Don Ho und die Mitwirkenden von Notepad++, deutsche Übersetzung von deren Übersetzerinnen und Übersetzern | GPL v3 | Aufbau und Texte der Menüs, Tastenkürzel, Layout des Suchen-Dialogs |
+| `Notepad_plus.rc`, `Parameters.cpp`, `FindReplaceDlg.rc`, `preference.rc`, die übrigen `.rc`-Dialoge, `installer/nativeLang/german.xml`, `tabContextMenu_example.xml` | Don Ho und die Mitwirkenden von Notepad++, deutsche Übersetzung von deren Übersetzerinnen und Übersetzern | GPL v3 | Aufbau und Texte der Menüs, Tastenkürzel, Layout des Suchen-Dialogs |
 
 Kladde selbst steht unter der GPL v3 (`LICENSE`). Code von Notepad++ übernimmt Kladde nicht; die
 Oberfläche ist neu geschrieben und liest Aufbau, Texte und Symbole beim Bauen aus den Dateien oben. «Notepad++» ist der Name des Vorbilds, nicht dieses Programms.

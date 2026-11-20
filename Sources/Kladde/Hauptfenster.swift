@@ -90,7 +90,16 @@ final class Hauptfenster: NSWindowController, NSWindowDelegate {
         }
         einstellungen = NotificationCenter.default.addObserver(
             forName: Einstellungen.geaendert, object: nil, queue: .main
-        ) { [weak self] _ in self?.darstellungGeaendert() }
+        ) { [weak self] _ in
+            self?.wendeModusAn()
+            self?.darstellungGeaendert()
+            self?.tabsGeaendert()
+        }
+        // Ausgeblendete Leisten, Tab-Höhe und Modus gleich beim Start. Nicht die ganze
+        // Darstellung: Die Seitenleisten fragen nach Hauptfenster.gemeinsam, das hier
+        // noch entsteht (rekursives dispatch_once).
+        wendeModusAn()
+        wendeLeistenAn()
     }
 
     @available(*, unavailable)
@@ -245,7 +254,8 @@ final class Hauptfenster: NSWindowController, NSWindowDelegate {
     /// Titel wie in Notepad++: «*/pfad/datei.txt - Kladde».
     func tabsGeaendert() {
         if let d = aktivesDokument {
-            window?.title = (d.isDocumentEdited ? "*" : "") + (d.fileURL?.path ?? d.tabTitel) + " - Kladde"
+            let name = Einstellungen.kurzerTitel ? (d.fileURL?.lastPathComponent ?? d.tabTitel) : (d.fileURL?.path ?? d.tabTitel)
+            window?.title = (d.isDocumentEdited ? "*" : "") + name + " - Kladde"
         } else {
             window?.title = "Kladde"
         }
@@ -285,23 +295,39 @@ final class Hauptfenster: NSWindowController, NSWindowDelegate {
 
     // MARK: Schliessen
 
-    /// Schliesst Dokumente nacheinander, mit Rückfrage bei ungesicherten.
-    /// Bleibt keines, entsteht wie in Notepad++ ein leeres «neu 1».
+    /// Schliesst Dokumente nacheinander. Bei ungesicherten fragt Kladde wie
+    /// Notepad++ mit «Speichern» (Ja, Nein, Abbruch, Ja/Nein für alle). Bleibt
+    /// keines, entsteht ein leeres «neu 1» (oder Kladde endet, wenn eingestellt).
     func schliesse(_ liste: [Dokument], dann: (() -> Void)? = nil) {
-        guard let erstes = liste.first else {
-            if tabs.isEmpty { NSDocumentController.shared.newDocument(nil) }
-            dann?()
-            return
+        var rest = liste
+        var alleJa = false, alleNein = false
+        let mehrere = liste.filter(\.isDocumentEdited).count > 1
+        func zu(_ d: Dokument) {
+            entferne(d)
+            d.close()
         }
-        aktiviere(erstes)
-        let rest = Array(liste.dropFirst())
-        Schliesshelfer.frage(erstes) { [weak self] darf in
-            guard let self else { return }
-            guard darf else { return }  // Abbrechen bricht die ganze Reihe ab
-            self.entferne(erstes)
-            erstes.close()
-            self.schliesse(rest, dann: dann)
+        func weiter() {
+            guard !rest.isEmpty else {
+                if tabs.isEmpty {
+                    if Einstellungen.letzterTabBeendet { NSApp.terminate(nil); return }
+                    NSDocumentController.shared.newDocument(nil)
+                }
+                dann?()
+                return
+            }
+            let d = rest.removeFirst()
+            guard d.isDocumentEdited, !alleNein else { zu(d); return weiter() }
+            if alleJa { return Speicherhelfer.speichere(d) { ok in if ok { zu(d); weiter() } } }
+            aktiviere(d)
+            switch Dialoge.speichernFrage(d, mehrere: mehrere) {
+            case "IDYES": Speicherhelfer.speichere(d) { ok in if ok { zu(d); weiter() } }
+            case "IDNO": zu(d); weiter()
+            case "IDRETRY": alleJa = true; Speicherhelfer.speichere(d) { ok in if ok { zu(d); weiter() } }
+            case "IDIGNORE": alleNein = true; zu(d); weiter()
+            default: return  // Abbruch beendet die ganze Reihe
+            }
         }
+        weiter()
     }
 
     /// Nimmt einen Tab weg, ohne zu fragen (nach dem Schliessen des Dokuments).
@@ -329,9 +355,28 @@ final class Hauptfenster: NSWindowController, NSWindowDelegate {
         tableiste.needsDisplay = true
     }
 
+    private var angewandterModus: Int?
+
+    /// «Dunkler Modus»: hell, dunkel oder wie macOS. Nur wenn die Einstellung wechselt,
+    /// damit ein von aussen gesetztes Aussehen (Selbstprüfung) bleibt.
+    private func wendeModusAn() {
+        let modus = Einstellungen.modus
+        guard modus != angewandterModus else { return }
+        angewandterModus = modus
+        NSApp.appearance = [NSAppearance(named: .aqua), NSAppearance(named: .darkAqua), nil][modus]
+    }
+
+    /// Symbol-, Tab- und Statusleiste nach «Optionen» ein- oder ausblenden.
+    private func wendeLeistenAn() {
+        werkzeugleiste.isHidden = Einstellungen.symbolleisteAusblenden || postIt
+        statusleiste.isHidden = Einstellungen.statusleisteAusblenden || postIt
+        tableiste.einstellungenGeaendert()
+        tableiste.isHidden = Einstellungen.tabsAusblenden || postIt
+    }
+
     private func darstellungGeaendert() {
         werkzeugleiste.aktualisiere()
-        tableiste.needsDisplay = true
+        wendeLeistenAn()
         statusleiste.aktualisiere()
         statusleiste.needsDisplay = true
         window?.appearance = NSAppearance(named: Self.istDunkel ? .darkAqua : .aqua)
@@ -389,21 +434,21 @@ final class Hauptfenster: NSWindowController, NSWindowDelegate {
     }
 }
 
-/// Fragt NSDocument, ob ein Dokument zu darf, und meldet die Antwort in einem Block.
-private final class Schliesshelfer: NSObject {
-    private let antwort: (Bool) -> Void
-    private static var offen: [Schliesshelfer] = []
+/// Sichert ein Dokument und meldet, ob es geklappt hat (bei neuen Dokumenten mit Sichern-Dialog).
+private final class Speicherhelfer: NSObject {
+    private let fertig: (Bool) -> Void
+    private static var offen: [Speicherhelfer] = []
 
-    private init(_ antwort: @escaping (Bool) -> Void) { self.antwort = antwort }
+    private init(_ fertig: @escaping (Bool) -> Void) { self.fertig = fertig }
 
-    static func frage(_ dokument: Dokument, antwort: @escaping (Bool) -> Void) {
-        let h = Schliesshelfer(antwort)
+    static func speichere(_ d: Dokument, fertig: @escaping (Bool) -> Void) {
+        let h = Speicherhelfer(fertig)
         offen.append(h)
-        dokument.canClose(withDelegate: h, shouldClose: #selector(dokument(_:darfSchliessen:kontext:)), contextInfo: nil)
+        d.save(withDelegate: h, didSave: #selector(dokument(_:gesichert:kontext:)), contextInfo: nil)
     }
 
-    @objc func dokument(_ dokument: NSDocument, darfSchliessen: Bool, kontext: UnsafeMutableRawPointer?) {
+    @objc func dokument(_ d: NSDocument, gesichert: Bool, kontext: UnsafeMutableRawPointer?) {
         Self.offen.removeAll { $0 === self }
-        antwort(darfSchliessen)
+        fertig(gesichert)
     }
 }

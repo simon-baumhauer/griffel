@@ -51,6 +51,13 @@ final class Dokument: NSDocument {
         hasUndoManager = false
     }
 
+    /// Ein neues, leeres Dokument: Zeilenende, Kodierung und Sprache aus «Optionen → Neues Dokument».
+    func setzeVorgabenFuerNeu() {
+        datei.zeilenende = [Textdatei.Zeilenende.crlf, .lf, .cr][Einstellungen.neuZeilenende]
+        datei.kodierung = [Textdatei.Kodierung.windows1252, .utf8, .utf8MitBOM, .utf16BE, .utf16LE][Einstellungen.neuKodierung]
+        if !Einstellungen.neuSprache.isEmpty { gewaehlteSprache = Einstellungen.neuSprache }
+    }
+
     override class var autosavesInPlace: Bool { false }
 
     /// Statt eines Fensters ein Tab im Hauptfenster.
@@ -240,6 +247,13 @@ final class Dokumente: NSDocumentController {
     static func inTabfolge() -> [Dokument] { Hauptfenster.gemeinsam.tabs }
 
     override func documentClass(forType typeName: String) -> AnyClass? { Dokument.self }
+
+    /// Neue, leere Dokumente bekommen die Vorgaben aus «Optionen → Neues Dokument».
+    override func makeUntitledDocument(ofType typeName: String) throws -> NSDocument {
+        let d = try super.makeUntitledDocument(ofType: typeName)
+        (d as? Dokument)?.setzeVorgabenFuerNeu()
+        return d
+    }
     override var defaultType: String? { "public.plain-text" }
     override func typeForContents(of url: URL) throws -> String { "public.plain-text" }
 

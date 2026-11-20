@@ -282,8 +282,8 @@ def dialog(rc, name, header, de_name):
     groesse = [int(x) for x in re.match(rf"{name} DIALOGEX\s+\d+,\s*\d+,\s*(\d+),\s*(\d+)", block).groups()]
     block = block[block.index("BEGIN"):block.index("\nEND")]
     nummern = defines(*header, "resource.h")
-    nummern.setdefault("IDOK", 1)
-    nummern.setdefault("IDCANCEL", 2)
+    for name, wert in (("IDOK", 1), ("IDCANCEL", 2), ("IDABORT", 3), ("IDRETRY", 4), ("IDIGNORE", 5), ("IDYES", 6), ("IDNO", 7)):
+        nummern.setdefault(name, wert)
     knoten = de.find(f".//Dialog/{de_name}")
     texte = {}
     listen = {}
@@ -301,7 +301,8 @@ def dialog(rc, name, header, de_name):
         art, text, kennung, klasse, stil, x, y, b, h, stil2 = m.groups()
         stil = (stil or "") + "|" + (stil2 or "")
         if art == "CONTROL":
-            art = "RADIO" if "RADIO" in stil else "CHECKBOX" if "CHECKBOX" in stil else "CONTROL"
+            art = ("RADIO" if "RADIO" in stil else "CHECKBOX" if "CHECKBOX" in stil
+                   else "SLIDER" if klasse == "msctls_trackbar32" else "PUSHBUTTON" if klasse == "Button" else "CONTROL")
         if art == "DEFPUSHBUTTON":
             art, stil = "PUSHBUTTON", stil + "|STANDARD"
         nummer = nummern.get(kennung)
@@ -319,7 +320,24 @@ dialoge = {
     "spalten": dialog("ScintillaComponent/columnEditor.rc", "IDD_COLUMNEDIT", ["ScintillaComponent/columnEditor_rc.h"], "ColumnEditor"),
     "makro": dialog("WinControls/shortcut/RunMacroDlg.rc", "IDD_RUN_MACRO_DLG", ["WinControls/shortcut/RunMacroDlg_rc.h"], "MultiMacro"),
     "hash": dialog("MISC/md5/md5Dlgs.rc", "IDD_HASHFROMTEXT_DLG", ["MISC/md5/md5Dlgs_rc.h"], "MD5FromTextDlg"),
+    "speichern": dialog("Notepad_plus.rc", "IDD_DOSAVEORNOTBOX", [], "DoSaveOrNot"),
 }
+
+# Die Optionen: Rahmen mit Kategorienliste und die Seiten in der Reihenfolge von preferenceDlg.cpp.
+_pref = "WinControls/Preference/preference.rc"
+_pref_h = ["WinControls/Preference/preference_rc.h"]
+optionen = {"rahmen": dialog(_pref, "IDD_PREFERENCE_BOX", _pref_h, "Preference"), "seiten": []}
+for tag, name in [("Global", "GENERAL"), ("Toolbar", "TOOLBAR"), ("Tabbar", "TABBAR"), ("Scintillas", "EDITING"),
+                  ("Scintillas2", "EDITING2"), ("DarkMode", "DARKMODE"), ("MarginsBorderEdge", "MARGING_BORDER_EDGE"),
+                  ("NewDoc", "NEWDOCUMENT"), ("DefaultDir", "DEFAULTDIRECTORY"), ("RecentFilesHistory", "RECENTFILESHISTORY"),
+                  ("Language", "LANGUAGE"), ("Indentation", "INDENTATION"), ("Highlighting", "HIGHLIGHTING"), ("Print", "PRINT"),
+                  ("Searching", "SEARCHING"), ("Backup", "BACKUP"), ("AutoCompletion", "AUTOCOMPLETION"),
+                  ("MultiInstance", "MULTIINSTANCE"), ("Delimiter", "DELIMITER"), ("Performance", "PERFORMANCE"),
+                  ("Cloud", "CLOUD_LINK"), ("SearchEngine", "SEARCHENGINE"), ("MISC", "MISC")]:
+    seite = dialog(_pref, f"IDD_PREFERENCE_SUB_{name}", _pref_h, f"Preference/{tag}")
+    seite["kennung"] = tag
+    optionen["seiten"].append(seite)
+dialoge["optionen"] = optionen["rahmen"]
 
 # ---------------------------------------------------------------- Statusleiste und Rest
 
@@ -346,7 +364,7 @@ for dialog in ("GoToLine", "Run", "IncrementalFind", "MD5FromTextDlg", "SHA1From
     for item in knoten.iter("Item"):
         texte[f"{dialog}.{item.get('id')}"] = sauber(item.get("name"))
 
-ergebnis = {"menues": hauptmenues, "tabmenue": tabmenue, "suchen": suchen, "dialoge": dialoge, "texte": texte}
+ergebnis = {"menues": hauptmenues, "tabmenue": tabmenue, "suchen": suchen, "dialoge": dialoge, "optionen": optionen["seiten"], "texte": texte}
 ziel.write_text(json.dumps(ergebnis, ensure_ascii=False, indent=1), encoding="utf-8")
 
 anzahl = 0

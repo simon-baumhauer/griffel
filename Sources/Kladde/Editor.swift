@@ -122,14 +122,7 @@ final class Editor: NSObject, ScintillaNotificationProtocol {
         sci(SCI_SETMARGINTYPEN, rand, Int(SC_MARGIN_SYMBOL))
         sci(SCI_SETMARGINMASKN, rand, Int(bitPattern: UInt(SC_MASK_FOLDERS)))
         sci(SCI_SETMARGINSENSITIVEN, rand, 1)
-        let marken: [(Int32, Int32)] = [
-            (SC_MARKNUM_FOLDEROPEN, SC_MARK_BOXMINUS), (SC_MARKNUM_FOLDER, SC_MARK_BOXPLUS),
-            (SC_MARKNUM_FOLDERSUB, SC_MARK_VLINE), (SC_MARKNUM_FOLDERTAIL, SC_MARK_LCORNER),
-            (SC_MARKNUM_FOLDEREND, SC_MARK_BOXPLUSCONNECTED),
-            (SC_MARKNUM_FOLDEROPENMID, SC_MARK_BOXMINUSCONNECTED),
-            (SC_MARKNUM_FOLDERMIDTAIL, SC_MARK_TCORNER),
-        ]
-        for (marke, form) in marken { sci(SCI_MARKERDEFINE, Int(marke), Int(form)) }
+        setzeFaltStil()
         sci(SCI_MARKERENABLEHIGHLIGHT, 1)
         sci(SCI_SETFOLDFLAGS, Int(SC_FOLDFLAG_LINEAFTER_CONTRACTED))
         // Klick auf ein Kästchen klappt; Änderungen am Text halten gefaltete Blöcke sichtbar.
@@ -156,7 +149,6 @@ final class Editor: NSObject, ScintillaNotificationProtocol {
     /// Farben und Faltungsrand für eine Sprache, deren Lexer der Text schon hat.
     func uebernimmSprache(_ neu: Sprache) {
         sprache = neu
-        sci(SCI_SETMARGINWIDTHN, Int(Self.randFaltung), neu.istNormalerText ? 0 : 16)
         wendeDarstellungAn()
         zustandGeaendert?()
     }
@@ -258,6 +250,7 @@ final class Editor: NSObject, ScintillaNotificationProtocol {
         sci(SCI_SETWRAPVISUALFLAGS, Int(Einstellungen.umbruchSymbol ? SC_WRAPVISUALFLAG_END : SC_WRAPVISUALFLAG_NONE))
         sci(SCI_SETVIEWEOL, Einstellungen.zeilenendenZeigen ? 1 : 0)
         sci(SCI_SETINDENTATIONGUIDES, Int(Einstellungen.einrueckungshilfen ? SC_IV_LOOKBOTH : SC_IV_NONE))
+        wendeVerhaltenAn(schema: schema)
 
         zeilennummernStellen = 0
         passeZeilennummernAn()
@@ -272,6 +265,86 @@ final class Editor: NSObject, ScintillaNotificationProtocol {
             sci(SCI_SETVIEWEOL, 0)
         }
         sci(SCI_COLOURISE, 0, -1)
+    }
+
+    /// Die Optionen aus «Bearbeiten 1/2», «Ränder/Rahmen/Umrandung» und «Einrückungen»,
+    /// wie ScintillaEditView sie in Notepad++ setzt.
+    private func wendeVerhaltenAn(schema: Farbschema) {
+        // Aktuelle Zeile: keine, Hintergrund oder Rahmen mit Breite 1–6.
+        let zeile = Einstellungen.aktuelleZeile
+        sci(SCI_SETCARETLINEVISIBLE, zeile == 0 ? 0 : 1)
+        sci(SCI_SETCARETLINEFRAME, zeile == 2 ? Einstellungen.aktuelleZeileRahmen : 0)
+        // Cursor: Breite 0–3 oder Block; Blinkfrequenz.
+        let breite = Einstellungen.cursorBreite
+        sci(SCI_SETCARETSTYLE, Int(breite == 4 ? CARETSTYLE_BLOCK : CARETSTYLE_LINE))
+        if breite < 4 { sci(SCI_SETCARETWIDTH, breite) }
+        sci(SCI_SETCARETPERIOD, Einstellungen.cursorBlinken)
+        // Zeilenumbruch: Standard, ausgerichtet, eingerückt.
+        sci(SCI_SETWRAPINDENTMODE, Int([SC_WRAPINDENT_FIXED, SC_WRAPINDENT_SAME, SC_WRAPINDENT_INDENT][Einstellungen.umbruchArt]))
+        sci(SCI_SETVIRTUALSPACEOPTIONS, Int(SCVS_RECTANGULARSELECTION | (Einstellungen.virtuellerRaum ? SCVS_USERACCESSIBLE : 0)))
+        sci(SCI_SETENDATLASTLINE, Einstellungen.ueberLetzteZeile ? 0 : 1)
+        sci(SCI_SETMULTIPLESELECTION, Einstellungen.mehrfachBearbeitung ? 1 : 0)
+        sci(SCI_SETADDITIONALSELECTIONTYPING, Einstellungen.mehrfachBearbeitung ? 1 : 0)
+        sci(SCI_SETBACKSPACEUNINDENTS, Einstellungen.rueckLoeschtEinzug ? 1 : 0)
+        guard !istKarte else { return }
+        // Ränder: Lesezeichen, Faltung, Abstand links und rechts.
+        sci(SCI_SETMARGINWIDTHN, Self.randLesezeichen, Einstellungen.lesezeichenRand ? 14 : 0)
+        setzeFaltStil()
+        sci(SCI_SETMARGINLEFT, 0, Einstellungen.randLinks)
+        sci(SCI_SETMARGINRIGHT, 0, Einstellungen.randRechts)
+        // Senkrechte Kanten: mehrere Spalten als Linien, eine Spalte auch als Hintergrund.
+        let spalten = Einstellungen.kanten.split(whereSeparator: { !$0.isNumber }).compactMap { Int($0) }.filter { $0 > 0 }
+        let kantenfarbe = scintillaFarbe(schema.global["Edge colour"]?.vorne ?? 0x80FFFF)
+        sci(SCI_MULTIEDGECLEARALL)
+        if spalten.isEmpty {
+            sci(SCI_SETEDGEMODE, Int(EDGE_NONE))
+        } else if spalten.count == 1, Einstellungen.kanteHintergrund {
+            sci(SCI_SETEDGEMODE, Int(EDGE_BACKGROUND))
+            sci(SCI_SETEDGECOLUMN, spalten[0])
+            sci(SCI_SETEDGECOLOUR, kantenfarbe)
+        } else {
+            sci(SCI_SETEDGEMODE, Int(EDGE_MULTILINE))
+            for s in spalten { sci(SCI_MULTIEDGEADDLINE, s, kantenfarbe) }
+        }
+        // Änderungshistorie: Rand 3 mit den Markern von Scintilla, auf Wunsch im Text.
+        sci(SCI_SETMARGINTYPEN, Self.randAenderungen, Int(SC_MARGIN_SYMBOL))
+        sci(SCI_SETMARGINMASKN, Self.randAenderungen,
+            (1 << SC_MARKNUM_HISTORY_REVERTED_TO_ORIGIN) | (1 << SC_MARKNUM_HISTORY_SAVED)
+                | (1 << SC_MARKNUM_HISTORY_MODIFIED) | (1 << SC_MARKNUM_HISTORY_REVERTED_TO_MODIFIED))
+        sci(SCI_SETMARGINWIDTHN, Self.randAenderungen, Einstellungen.aenderungenAmRand ? 9 : 0)
+        passeAenderungshistorieAn()
+    }
+
+    static let randAenderungen = 3
+
+    /// Scintilla führt die Historie nur, wenn sie eingeschaltet war, bevor geändert
+    /// wurde; beim Laden und für neue Dokumente gilt sie darum sofort, sonst ab dem
+    /// nächsten Öffnen (wie in Notepad++).
+    func passeAenderungshistorieAn() {
+        var flags = 0
+        if Einstellungen.aenderungenAmRand || Einstellungen.aenderungenImText {
+            flags = Int(SC_CHANGE_HISTORY_ENABLED)
+            if Einstellungen.aenderungenAmRand { flags |= Int(SC_CHANGE_HISTORY_MARKERS) }
+            if Einstellungen.aenderungenImText { flags |= Int(SC_CHANGE_HISTORY_INDICATORS) }
+        }
+        sci(SCI_SETCHANGEHISTORY, flags)
+    }
+
+    /// Die Marker des Faltungsrands wie ScintillaEditView::_markersArray in Notepad++.
+    private func setzeFaltStil() {
+        let nummern: [Int32] = [SC_MARKNUM_FOLDEROPEN, SC_MARKNUM_FOLDER, SC_MARKNUM_FOLDERSUB, SC_MARKNUM_FOLDERTAIL,
+                                SC_MARKNUM_FOLDEREND, SC_MARKNUM_FOLDEROPENMID, SC_MARKNUM_FOLDERMIDTAIL]
+        let stile: [[Int32]] = [
+            [SC_MARK_MINUS, SC_MARK_PLUS, SC_MARK_EMPTY, SC_MARK_EMPTY, SC_MARK_EMPTY, SC_MARK_EMPTY, SC_MARK_EMPTY],
+            [SC_MARK_ARROWDOWN, SC_MARK_ARROW, SC_MARK_EMPTY, SC_MARK_EMPTY, SC_MARK_EMPTY, SC_MARK_EMPTY, SC_MARK_EMPTY],
+            [SC_MARK_CIRCLEMINUS, SC_MARK_CIRCLEPLUS, SC_MARK_VLINE, SC_MARK_LCORNERCURVE, SC_MARK_CIRCLEPLUSCONNECTED,
+             SC_MARK_CIRCLEMINUSCONNECTED, SC_MARK_TCORNERCURVE],
+            [SC_MARK_BOXMINUS, SC_MARK_BOXPLUS, SC_MARK_VLINE, SC_MARK_LCORNER, SC_MARK_BOXPLUSCONNECTED,
+             SC_MARK_BOXMINUSCONNECTED, SC_MARK_TCORNER],
+        ]
+        let stil = Einstellungen.faltStil
+        if stil < 4 { for (n, f) in zip(nummern, stile[stil]) { sci(SCI_MARKERDEFINE, Int(n), Int(f)) } }
+        sci(SCI_SETMARGINWIDTHN, Int(Self.randFaltung), sprache.istNormalerText || stil == 4 || istKarte ? 0 : 16)
     }
 
     private func setze(_ stil: Stil) {
@@ -295,7 +368,11 @@ final class Editor: NSObject, ScintillaNotificationProtocol {
             zeilennummernStellen = -1
             return
         }
-        let stellen = max(3, String(sci(SCI_GETLINECOUNT)).count)
+        // Dynamisch: so breit wie die grösste sichtbare Nummer; konstant: wie die letzte Zeile.
+        let bis = Einstellungen.zeilennummernDynamisch
+            ? sci(SCI_DOCLINEFROMVISIBLE, sci(SCI_GETFIRSTVISIBLELINE) + sci(SCI_LINESONSCREEN)) + 1
+            : sci(SCI_GETLINECOUNT)
+        let stellen = max(Einstellungen.zeilennummernDynamisch ? 1 : 3, String(bis).count)
         guard stellen != zeilennummernStellen else { return }
         zeilennummernStellen = stellen
         let breite = sci(SCI_TEXTWIDTH, Int(STYLE_LINENUMBER), "_" + String(repeating: "9", count: stellen))
@@ -340,6 +417,7 @@ final class Editor: NSObject, ScintillaNotificationProtocol {
     // MARK: Text
 
     func lade(_ datei: Textdatei) {
+        sci(SCI_SETCHANGEHISTORY, 0)
         sci(SCI_SETUNDOCOLLECTION, 0)
         sci(SCI_CLEARALL)
         datei.utf8.withUnsafeBytes { bytes in
@@ -351,6 +429,7 @@ final class Editor: NSObject, ScintillaNotificationProtocol {
         sci(SCI_SETUNDOCOLLECTION, 1)
         sci(SCI_EMPTYUNDOBUFFER)
         sci(SCI_SETSAVEPOINT)
+        passeAenderungshistorieAn()
         sci(SCI_GOTOPOS, 0)
     }
 
@@ -535,11 +614,12 @@ final class Editor: NSObject, ScintillaNotificationProtocol {
         loescheMarkierungen(Self.indikatorSmart)
         guard Einstellungen.smartHighlighting, sci(SCI_GETSELECTIONS) == 1 else { return }
         let bereich = auswahl
+        let ganzesWort = Einstellungen.smartGanzesWort
         guard !bereich.isEmpty, bereich.count < 200,
             sci(SCI_LINEFROMPOSITION, bereich.lowerBound) == sci(SCI_LINEFROMPOSITION, bereich.upperBound),
-            sci(SCI_WORDSTARTPOSITION, bereich.lowerBound, 1) == bereich.lowerBound,
-            sci(SCI_WORDENDPOSITION, bereich.lowerBound, 1) == bereich.upperBound,
-            let wort = text(bereich)
+            !ganzesWort || sci(SCI_WORDSTARTPOSITION, bereich.lowerBound, 1) == bereich.lowerBound,
+            !ganzesWort || sci(SCI_WORDENDPOSITION, bereich.lowerBound, 1) == bereich.upperBound,
+            let wort = text(bereich), !wort.allSatisfy(\.isWhitespace)
         else { return }
 
         // Nur der sichtbare Teil, wie Notepad++: grosse Dateien bleiben schnell.
@@ -551,7 +631,8 @@ final class Editor: NSObject, ScintillaNotificationProtocol {
 
         var optionen = SuchOptionen()
         optionen.text = wort
-        optionen.ganzesWort = true
+        optionen.ganzesWort = ganzesWort
+        optionen.grossKlein = Einstellungen.smartGrossKlein
         guard let muster = try? Suchmuster(optionen) else { return }
         let treffer = muster.alle(in: Suchtext(sichtbar))
             .map { ($0.bereich.lowerBound + von)..<($0.bereich.upperBound + von) }
@@ -926,7 +1007,8 @@ final class Editor: NSObject, ScintillaNotificationProtocol {
     /// Schliesst Klammern und Anführungszeichen (Notepad++: «Auto-Insert»).
     private func schliesseKlammer(_ zeichen: Int32) {
         let paare: [Int32: String] = [0x28: ")", 0x5B: "]", 0x7B: "}", 0x22: "\"", 0x27: "'"]
-        guard sci(SCI_GETSELECTIONS) == 1, let zu = paare[zeichen] else { return }
+        guard sci(SCI_GETSELECTIONS) == 1, let zu = paare[zeichen],
+              let auf = UnicodeScalar(UInt32(zeichen)).map(Character.init), Einstellungen.schliesst(auf) else { return }
         let marke = sci(SCI_GETCURRENTPOS)
         // Anführungszeichen nur, wenn danach kein Wortzeichen folgt und davor keins steht.
         if zeichen == 0x22 || zeichen == 0x27 {
@@ -982,7 +1064,7 @@ final class Editor: NSObject, ScintillaNotificationProtocol {
         let schatz = Sprachdaten.gemeinsam.wortschatz(fuer: sprache)
         let z = UnicodeScalar(UInt32(max(0, zeichen))).map(Character.init)
         if let z, z == schatz.aufrufAnfang {
-            zeigeAufrufhilfe(schatz)
+            if Einstellungen.aufrufhilfeAn { zeigeAufrufhilfe(schatz) }
             return
         }
         if let z, z == schatz.aufrufEnde {
@@ -1021,7 +1103,7 @@ final class Editor: NSObject, ScintillaNotificationProtocol {
     }
 
     private func schlageVor(_ schatz: Wortschatz, zeichen: Character?, ab vorgabe: Int? = nil) {
-        let ab = vorgabe ?? Einstellungen.vervollstaendigenAb
+        let ab = vorgabe ?? (Einstellungen.vervollstaendigenAn ? max(1, Einstellungen.vervollstaendigenAb) : 0)
         guard ab > 0, let zeichen, zeichen.isLetter || zeichen.isNumber || zeichen == "_" else { return }
         let marke = sci(SCI_GETCURRENTPOS)
         let anfang = sci(SCI_WORDSTARTPOSITION, marke, 1)
@@ -1029,7 +1111,9 @@ final class Editor: NSObject, ScintillaNotificationProtocol {
         if textwoerter == nil, sci(SCI_GETLENGTH) < 2_000_000 {
             textwoerter = Wortschatz.woerter(in: String(decoding: utf8, as: UTF8.self))
         }
-        let liste = schatz.vorschlaege(fuer: wort, ausText: textwoerter ?? [])
+        // «Funktionsvervollständigung», «Wortvervollständigung» oder beides.
+        let art = vorgabe == nil ? Einstellungen.vervollstaendigenArt : 2
+        let liste = (art == 1 ? Wortschatz.leer : schatz).vorschlaege(fuer: wort, ausText: art == 0 ? [] : textwoerter ?? [])
         guard !liste.isEmpty else {
             if sci(SCI_AUTOCACTIVE) != 0 { sci(SCI_AUTOCCANCEL) }
             return
@@ -1142,6 +1226,9 @@ final class Editor: NSObject, ScintillaNotificationProtocol {
             if meldung.pointee.updated & Int32(SC_UPDATE_SELECTION | SC_UPDATE_V_SCROLL) != 0 {
                 hebeAuswahlHervor()
             }
+            if Einstellungen.zeilennummernDynamisch, meldung.pointee.updated & Int32(SC_UPDATE_V_SCROLL) != 0 {
+                passeZeilennummernAn()
+            }
             meldeZustand()
         case SCN_MARGINCLICK where Int(meldung.pointee.margin) == Self.randLesezeichen:
             schalteLesezeichen(zeile: sci(SCI_LINEFROMPOSITION, meldung.pointee.position))
@@ -1152,7 +1239,7 @@ final class Editor: NSObject, ScintillaNotificationProtocol {
         case SCN_CHARADDED:
             let zeichen = meldung.pointee.ch
             if (zeichen == 0x0A || zeichen == 0x0D), Einstellungen.autoEinzug { ruecke() }
-            if Einstellungen.klammernSchliessen { schliesseKlammer(zeichen) }
+            schliesseKlammer(zeichen)
             hilf(nach: zeichen)
         case SCN_ZOOM:
             zeilennummernStellen = 0

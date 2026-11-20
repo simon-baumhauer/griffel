@@ -32,11 +32,15 @@ final class Werkzeugleiste: NSView {
     /// » am rechten Rand, wenn nicht alle Knöpfe Platz haben (wie die Chevron-Taste von Windows).
     private let mehr = NSButton(title: "»", target: nil, action: nil)
     private var versteckte: [Knopf] = []
-    static let hoehe: CGFloat = 28
+    /// Höhe: Windows-Knopf (Symbol + 6) und Rand; 28 bei kleinen, 44 bei grossen Symbolen.
+    static var hoehe: CGFloat { Symbole.symbolGroesse(Einstellungen.symbolsatz) + 12 }
+    private var hoehenBedingung: NSLayoutConstraint!
+    private var gebauteGroesse: CGFloat = 0
 
     override init(frame: NSRect) {
         super.init(frame: frame)
-        heightAnchor.constraint(equalToConstant: Self.hoehe).isActive = true
+        hoehenBedingung = heightAnchor.constraint(equalToConstant: Self.hoehe)
+        hoehenBedingung.isActive = true
         stapel.orientation = .horizontal
         stapel.spacing = 0
         stapel.edgeInsets = NSEdgeInsets(top: 2, left: 3, bottom: 2, right: 3)
@@ -63,6 +67,7 @@ final class Werkzeugleiste: NSView {
     required init?(coder: NSCoder) { fatalError("Werkzeugleiste entsteht nur im Code") }
 
     func baue() {
+        gebauteGroesse = Symbole.symbolGroesse(Einstellungen.symbolsatz)
         stapel.arrangedSubviews.forEach { $0.removeFromSuperview() }
         knopfListe = []
         for k in Self.knoepfe {
@@ -72,7 +77,8 @@ final class Werkzeugleiste: NSView {
                 stapel.addArrangedSubview(trenner)
                 continue
             }
-            let knopf = Knopf(symbol: symbol, befehl: befehl, aufklappen: Self.aufklappmenue(befehl))
+            let knopf = Knopf(symbol: symbol, befehl: befehl, aufklappen: Self.aufklappmenue(befehl),
+                              groesse: Symbole.symbolGroesse(Einstellungen.symbolsatz))
             knopf.setAccessibilityLabel(Oberflaeche.gemeinsam.titel(befehl).replacingOccurrences(of: " …", with: ""))
             knopf.target = self
             knopf.action = #selector(gedrueckt(_:))
@@ -207,7 +213,11 @@ final class Werkzeugleiste: NSView {
         let kopf = NSMenuItem(title: "Symbole der Werkzeugleiste", action: nil, keyEquivalent: "")
         kopf.isEnabled = false
         m.addItem(kopf)
-        for (satz, titel) in [("standard", "Klein (klassisch)"), ("fluent", "Fluent UI: klein"), ("fluentGefuellt", "Fluent UI: klein, gefüllt")] {
+        let t = Oberflaeche.gemeinsam.optionenText
+        for (satz, titel) in [("fluent", t("IDC_RADIO_SMALLICON", "Fluent UI: klein")), ("fluentGross", t("IDC_RADIO_BIGICON", "Fluent UI: groß")),
+                              ("fluentGefuellt", t("IDC_RADIO_SMALLICON2", "Ausgefüllte Fluent UI: klein")),
+                              ("fluentGefuelltGross", t("IDC_RADIO_BIGICON2", "Ausgefüllte Fluent UI: groß")),
+                              ("standard", t("IDC_RADIO_STANDARD", "Standard-Symbole: klein"))] {
             let i = NSMenuItem(title: titel, action: #selector(symbolsatzGewaehlt(_:)), keyEquivalent: "")
             i.target = self
             i.representedObject = satz
@@ -226,6 +236,13 @@ final class Werkzeugleiste: NSView {
     func aktualisiere() {
         let dunkel = Hauptfenster.istDunkel
         let satz = Einstellungen.symbolsatz
+        // Andere Symbolgrösse: Knöpfe neu bauen, Leiste höher oder niedriger.
+        if Symbole.symbolGroesse(satz) != gebauteGroesse {
+            gebauteGroesse = Symbole.symbolGroesse(satz)
+            hoehenBedingung.constant = Self.hoehe
+            baue()
+            return
+        }
         for k in knopfListe {
             let z = zustand(k.befehl)
             k.moeglich = z.moeglich
@@ -259,16 +276,18 @@ final class Werkzeugleiste: NSView {
         private var unten = false
         private var pfeilOffen = false
         static let pfeilBreite: CGFloat = 11
-        var breite: CGFloat { 23 + (aufklappen == nil ? 0 : Self.pfeilBreite) }
+        let groesse: CGFloat
+        var breite: CGFloat { groesse + 7 + (aufklappen == nil ? 0 : Self.pfeilBreite) }
 
-        init(symbol: String, befehl: String, aufklappen: (() -> NSMenu)? = nil) {
+        init(symbol: String, befehl: String, aufklappen: (() -> NSMenu)? = nil, groesse: CGFloat = 16) {
             self.symbol = symbol
             self.befehl = befehl
             self.aufklappen = aufklappen
-            let breite = 23 + (aufklappen == nil ? 0 : Self.pfeilBreite)
-            super.init(frame: NSRect(x: 0, y: 0, width: breite, height: 22))
+            self.groesse = groesse
+            let breite = groesse + 7 + (aufklappen == nil ? 0 : Self.pfeilBreite)
+            super.init(frame: NSRect(x: 0, y: 0, width: breite, height: groesse + 6))
             widthAnchor.constraint(equalToConstant: breite).isActive = true
-            heightAnchor.constraint(equalToConstant: 22).isActive = true
+            heightAnchor.constraint(equalToConstant: groesse + 6).isActive = true
             setAccessibilityRole(.button)
         }
 
@@ -354,7 +373,7 @@ final class Werkzeugleiste: NSView {
             }
             let b = (!moeglich ? bildAus : nil) ?? bild
             b?.draw(
-                in: NSRect(x: (knopfBreite - 16) / 2, y: (bounds.height - 16) / 2, width: 16, height: 16),
+                in: NSRect(x: (knopfBreite - groesse) / 2, y: (bounds.height - groesse) / 2, width: groesse, height: groesse),
                 from: .zero, operation: .sourceOver, fraction: moeglich || bildAus != nil ? 1 : 0.35)
         }
     }

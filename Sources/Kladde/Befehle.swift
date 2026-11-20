@@ -98,7 +98,10 @@ extension Hauptfenster: NSMenuItemValidation {
         switch id {
         case "EDIT_UNDO": return (e?.nachricht(SCI_CANUNDO) ?? 0 != 0, false)
         case "EDIT_REDO": return (e?.nachricht(SCI_CANREDO) ?? 0 != 0, false)
-        case "EDIT_CUT", "EDIT_COPY", "EDIT_DELETE": return (!(e?.auswahl.isEmpty ?? true), false)
+        case "EDIT_CUT", "EDIT_COPY":
+            // «Zeile Kopieren/Ausschneiden ohne Auswahl aktivieren» (Vorgabe in Notepad++).
+            return (e != nil && (!(e!.auswahl.isEmpty) || Einstellungen.zeileOhneAuswahl), false)
+        case "EDIT_DELETE": return (!(e?.auswahl.isEmpty ?? true), false)
         case "FILE_SAVE": return (d?.isDocumentEdited ?? false || d?.fileURL == nil, false)
         case "FILE_SAVEALL": return (tabs.contains { $0.isDocumentEdited }, false)
         case "FILE_RELOAD", "FILE_OPEN_FOLDER", "FILE_OPEN_CMD", "FILE_CONTAININGFOLDERASWORKSPACE",
@@ -199,8 +202,12 @@ extension Hauptfenster: NSMenuItemValidation {
         // Bearbeiten: die Standardbefehle an den Ersten Antwortenden
         case "EDIT_UNDO": NSApp.sendAction(Selector(("undo:")), to: nil, from: self)
         case "EDIT_REDO": NSApp.sendAction(Selector(("redo:")), to: nil, from: self)
-        case "EDIT_CUT": NSApp.sendAction(#selector(NSText.cut(_:)), to: nil, from: self)
-        case "EDIT_COPY": NSApp.sendAction(#selector(NSText.copy(_:)), to: nil, from: self)
+        case "EDIT_CUT":
+            if let e, e.auswahl.isEmpty, Einstellungen.zeileOhneAuswahl { e.nachricht(SCI_LINECUT) }
+            else { NSApp.sendAction(#selector(NSText.cut(_:)), to: nil, from: self) }
+        case "EDIT_COPY":
+            if let e, e.auswahl.isEmpty, Einstellungen.zeileOhneAuswahl { e.nachricht(SCI_COPYALLOWLINE) }
+            else { NSApp.sendAction(#selector(NSText.copy(_:)), to: nil, from: self) }
         case "EDIT_PASTE": NSApp.sendAction(#selector(NSText.paste(_:)), to: nil, from: self)
         case "EDIT_DELETE": e?.nachricht(SCI_CLEAR)
         case "EDIT_SELECTALL": e?.nachricht(SCI_SELECTALL)
