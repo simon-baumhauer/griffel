@@ -1,5 +1,13 @@
 Ein Texteditor für den Mac nach dem Vorbild von Notepad++ – Scintilla und Lexilla wie dort, die Oberfläche in Swift nachgebaut. Für Apple Silicon und Intel, ab macOS 13.
 
+## Neu in 1.5.0
+
+Kladde heisst jetzt **Griffel** und hat ein neues Icon: ein Blatt mit umgeknickter Ecke. Einstellungen, Sitzung und benutzerdefinierte Sprachen übernimmt Griffel von Kladde (siehe «Installieren» unten).
+
+- Behoben: Wer mit ungesicherten Änderungen beendete (⌘Q, Dock, Abmelden, Ausschalten), fand beim nächsten Start keine Tabs mehr vor, und die ungesicherten Änderungen waren verloren
+- Der Befehl fürs Terminal heisst `griffel` und lässt sich im Menü «Griffel» installieren; ein früher installierter Befehl `kladde` öffnet weiter Griffel
+- Sitzungen als Datei heissen `.griffel-sitzung`; alte `.kladde-sitzung` lassen sich weiter laden
+
 ## Neu in 1.4.0
 
 - Tabs lassen sich wieder mit dem Kreuz schliessen: Im hellen Modus fehlte es, weil macOS das Symbol von Notepad++ nicht lesen konnte
