@@ -45,7 +45,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// (reviewUnsavedDocuments in Dokumente bleibt aus), und die Sitzung wäre
     /// so alt wie die letzte Zwischensicherung.
     func applicationWillTerminate(_ notification: Notification) {
-        Sitzung.sichere()
+        Sitzung.sichereZumBeenden()
     }
 
     /// Start ohne Datei und ohne Sitzung: ein leeres Dokument, wie «new 1» in Notepad++.

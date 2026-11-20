@@ -269,7 +269,7 @@ final class Dokumente: NSDocumentController {
                 withAlertTitle: title, cancellable: cancellable, delegate: delegate,
                 didReviewAllSelector: didReviewAllSelector, contextInfo: contextInfo)
         }
-        Sitzung.sichere()
+        Sitzung.sichereZumBeenden()
         guard let ziel = delegate as AnyObject?, let auswahl = didReviewAllSelector,
             let methode = ziel.method(for: auswahl)
         else { return }

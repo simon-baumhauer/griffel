@@ -34,7 +34,21 @@ enum Sitzung {
 
     // MARK: Sichern
 
+    /// Nach der letzten Sicherung vor dem Beenden nimmt die Sitzung nichts mehr
+    /// an. Mit ungesicherten Dokumenten schliesst AppKit sie nach der Rückfrage
+    /// (reviewUnsavedDocuments in Dokumente) alle; eine Sicherung danach
+    /// (applicationWillTerminate, die Zwischensicherung) fände keinen Tab mehr
+    /// und löschte die gute Sitzung samt ihren «.sicherung»-Dateien.
+    private static var abgeschlossen = false
+
+    /// Sichert ein letztes Mal vor dem Beenden; jede spätere Sicherung entfällt.
+    static func sichereZumBeenden() {
+        sichere()
+        abgeschlossen = true
+    }
+
     static func sichere() {
+        guard !abgeschlossen else { return }
         let dateien = FileManager.default
         try? dateien.createDirectory(at: ordner, withIntermediateDirectories: true)
         guard Einstellungen.sitzungMerken else {
