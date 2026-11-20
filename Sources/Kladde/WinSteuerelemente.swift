@@ -13,7 +13,10 @@ enum Win {
     static var textAus: NSColor { NSColor(rgb: dunkel ? 0x6E6E6E : 0x838383) }
     static var linie: NSColor { NSColor(rgb: dunkel ? 0x646464 : 0xDCDCDC) }
     static var akzent: NSColor { NSColor(rgb: dunkel ? 0x4CC2FF : 0x0078D7) }
-    static let schrift = NSFont.systemFont(ofSize: 12)
+    /// Eine Schrift für alle Dialoge, wie «MS Shell Dlg» 8 Punkt (Tahoma, 11 Pixel)
+    /// in Notepad++. Nichts wird verkleinert: Was nicht passt, bricht wie unter
+    /// Windows in Knöpfen um und wird sonst gekürzt.
+    static let schrift = NSFont.systemFont(ofSize: 11)
 
     static func rechteck(_ r: NSRect, fuell: NSColor, rand: NSColor, breite: CGFloat = 1) {
         fuell.setFill()
@@ -27,16 +30,11 @@ enum Win {
     static func zeichne(_ titel: String, in r: NSRect, farbe: NSColor, mitte: Bool = false, umbruch: Bool = false) {
         // «&» kennzeichnet unter Windows die Zugriffstaste; auf dem Mac fällt es weg.
         let t = titel.replacingOccurrences(of: "&&", with: "\u{1}").replacingOccurrences(of: "&", with: "").replacingOccurrences(of: "\u{1}", with: "&")
-        // Die Mac-Schrift ist breiter als Segoe UI: Was nicht passt, wird erst
-        // etwas kleiner (bis 10 Punkt) und erst dann umgebrochen oder gekürzt.
-        var groesse: CGFloat = 12
-        while groesse > 10, (t as NSString).size(withAttributes: [.font: NSFont.systemFont(ofSize: groesse)]).width > r.width { groesse -= 0.5 }
-        let passt = (t as NSString).size(withAttributes: [.font: NSFont.systemFont(ofSize: groesse)]).width <= r.width
-        if !passt, umbruch { groesse = 12 }
+        let passt = (t as NSString).size(withAttributes: [.font: schrift]).width <= r.width
         let absatz = NSMutableParagraphStyle()
         absatz.alignment = mitte ? .center : .left
         absatz.lineBreakMode = umbruch && !passt ? .byWordWrapping : .byTruncatingTail
-        let a: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: groesse), .foregroundColor: farbe, .paragraphStyle: absatz]
+        let a: [NSAttributedString.Key: Any] = [.font: schrift, .foregroundColor: farbe, .paragraphStyle: absatz]
         let s = NSAttributedString(string: t, attributes: a)
         let h = min(r.height, s.boundingRect(with: NSSize(width: r.width, height: 1000), options: [.usesLineFragmentOrigin]).height)
         s.draw(with: NSRect(x: r.minX, y: r.midY - h / 2, width: r.width, height: h), options: [.usesLineFragmentOrigin, .truncatesLastVisibleLine])
@@ -155,7 +153,7 @@ final class WinKombi: NSView, NSTextFieldDelegate {
         feld.isBordered = false
         feld.drawsBackground = false
         feld.focusRingType = .none
-        feld.font = .monospacedSystemFont(ofSize: 12, weight: .regular)
+        feld.font = Win.schrift
         feld.usesSingleLineMode = true
         feld.cell?.isScrollable = true
         feld.cell?.wraps = false
@@ -233,7 +231,7 @@ final class WinKombi: NSView, NSTextFieldDelegate {
             m.addItem(i)
         }
         m.minimumWidth = bounds.width
-        m.font = .monospacedSystemFont(ofSize: 12, weight: .regular)
+        m.font = Win.schrift
         m.popUp(positioning: nil, at: NSPoint(x: 0, y: bounds.height + 2), in: self)
     }
 
@@ -281,13 +279,17 @@ final class WinText: NSTextField {
         textColor = Win.text
     }
 
-    /// Zu lang für den Platz: erst kleiner (bis 10 Punkt), dann gekürzt.
-    override func layout() {
-        super.layout()
-        var g: CGFloat = 12
-        while g > 10, (stringValue as NSString).size(withAttributes: [.font: NSFont.systemFont(ofSize: g)]).width > bounds.width - 4 { g -= 0.5 }
-        if font?.pointSize != g { font = .systemFont(ofSize: g) }
+    /// Selbst gezeichnet wie die Beschriftung der Kästchen, damit alle Texte
+    /// im Dialog gleich aussehen (NSTextField setzt dünne Schrift sonst kräftiger).
+    override func draw(_ dirtyRect: NSRect) {
+        let absatz = NSMutableParagraphStyle()
+        absatz.alignment = alignment
+        absatz.lineBreakMode = .byTruncatingTail
+        let a: [NSAttributedString.Key: Any] = [.font: font ?? Win.schrift, .foregroundColor: textColor ?? Win.text, .paragraphStyle: absatz]
+        let h = (stringValue as NSString).size(withAttributes: a).height
+        (stringValue as NSString).draw(in: NSRect(x: 2, y: (bounds.height - h) / 2, width: bounds.width - 4, height: h), withAttributes: a)
     }
+
 }
 
 /// Ein Schieberegler wie die Trackbar von Windows: dünne Spur, blauer Griff.

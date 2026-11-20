@@ -48,14 +48,15 @@ final class SuchenDialog: NSWindowController, NSWindowDelegate {
     private init() {
         let d = Oberflaeche.gemeinsam.suchen
         let breite = CGFloat(d.groesse[0]) * Self.sx
-        let hoehe = (CGFloat(d.groesse[1]) - Self.oben) * Self.sy + 40
+        // Bis zum untersten Element, darunter die Statuszeile (wie in Notepad++).
+        let unten = CGFloat(d.elemente.filter { !Self.weglassen.contains($0.id) }.map { $0.y + ($0.art == "COMBOBOX" ? 12 : $0.h) }.max() ?? d.groesse[1])
+        let hoehe = (unten - Self.oben) * Self.sy + 34 + 34
         let fenster = NSPanel(
             contentRect: NSRect(x: 0, y: 0, width: breite + 16, height: hoehe),
             styleMask: [.titled, .closable], backing: .buffered, defer: true)
         fenster.isFloatingPanel = true
         fenster.hidesOnDeactivate = true
         fenster.isRestorable = false
-        fenster.setFrameAutosaveName("SuchenDialog")
         super.init(window: fenster)
         fenster.delegate = self
 
@@ -66,8 +67,8 @@ final class SuchenDialog: NSWindowController, NSWindowDelegate {
         let wurzel = WinFlaeche(frame: NSRect(x: 0, y: 0, width: breite + 16, height: hoehe))
         reiterLeiste.frame = NSRect(x: 0, y: 4, width: breite + 16, height: 26)
         reiterLeiste.autoresizingMask = [.width]
-        inhalt.frame = NSRect(x: 8, y: 34, width: breite, height: hoehe - 60)
-        status.frame = NSRect(x: 12, y: hoehe - 26, width: breite - 8, height: 18)
+        inhalt.frame = NSRect(x: 8, y: 34, width: breite, height: hoehe - 34 - 26)
+        status.frame = NSRect(x: 12, y: hoehe - 22, width: breite - 8, height: 16)
         status.font = Win.schrift
         status.lineBreakMode = .byTruncatingTail
         for v in [reiterLeiste, inhalt, status] as [NSView] { wurzel.addSubview(v) }
@@ -82,7 +83,7 @@ final class SuchenDialog: NSWindowController, NSWindowDelegate {
     required init?(coder: NSCoder) { fatalError() }
 
     private static let weglassen: Set<String> = [
-        "IDC_HIGHLIGHT_MODE", "IDC_2_BUTTONS_MODE", "IDC_FINDPREV", "IDC_FINDNEXT", "IDC_REPLACEANDSTOP",
+        "IDC_HIGHLIGHT_MODE", "IDC_2_BUTTONS_MODE", "IDD_RESIZE_TOGGLE_BUTTON", "IDC_FINDPREV", "IDC_FINDNEXT", "IDC_REPLACEANDSTOP",
         "IDC_CONFIRMREPLACEOPENDOCS", "IDD_FINDINFILES_PROJECT1_CHECK", "IDD_FINDINFILES_PROJECT2_CHECK",
         "IDD_FINDINFILES_PROJECT3_CHECK", "IDD_FINDINFILES_REPLACEINPROJECTS",
     ]

@@ -17,7 +17,7 @@ final class WinEingabe: NSView, NSTextFieldDelegate, NSTextViewDelegate {
             let r = NSScrollView()
             let t = NSTextView()
             t.isRichText = false
-            t.font = .monospacedSystemFont(ofSize: 12, weight: .regular)
+            t.font = Win.schrift
             t.textColor = Win.text
             t.drawsBackground = false
             t.isAutomaticQuoteSubstitutionEnabled = false
