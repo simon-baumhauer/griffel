@@ -32,8 +32,9 @@ enum Einstellungen {
 
     // MARK: Schrift und Text
 
+    /// Leer: die Schrift des Farbschemas (wie in Notepad++, meist Courier New).
     static var schriftName: String {
-        get { ablage.string(forKey: "Schrift") ?? "Menlo" }
+        get { ablage.string(forKey: "Schrift") ?? "" }
         set { ablage.set(newValue, forKey: "Schrift"); melde() }
     }
 
@@ -79,6 +80,40 @@ enum Einstellungen {
     static var vervollstaendigenAb: Int {
         get { (ablage.object(forKey: "VervollstaendigenAb") as? Int).map { min(max($0, 0), 9) } ?? 1 }
         set { ablage.set(newValue, forKey: "VervollstaendigenAb"); melde() }
+    }
+
+    /// Symbole der Werkzeugleiste: «standard» (klassisch, Vorgabe von Notepad++ im
+    /// hellen Modus), «fluent», «fluentGefuellt». Dunkel immer Fluent.
+    static var symbolsatz: String {
+        get { ablage.string(forKey: "Symbolsatz") ?? "standard" }
+        set { ablage.set(newValue, forKey: "Symbolsatz"); melde() }
+    }
+
+    /// Zeichen am Ende umgebrochener Zeilen (Symbole anzeigen → Umbruchsymbol).
+    static var umbruchSymbol: Bool {
+        get { ablage.bool(forKey: "UmbruchSymbol") }
+        set { ablage.set(newValue, forKey: "UmbruchSymbol"); melde() }
+    }
+
+    static var dokumentenlisteSichtbar: Bool {
+        get { ablage.bool(forKey: "DokumentenlisteSichtbar") }
+        set { ablage.set(newValue, forKey: "DokumentenlisteSichtbar"); melde() }
+    }
+
+    static var miniaturansichtSichtbar: Bool {
+        get { ablage.bool(forKey: "MiniaturansichtSichtbar") }
+        set { ablage.set(newValue, forKey: "MiniaturansichtSichtbar"); melde() }
+    }
+
+    static var arbeitsbereichSichtbar: Bool {
+        get { ablage.bool(forKey: "ArbeitsbereichSichtbar") }
+        set { ablage.set(newValue, forKey: "ArbeitsbereichSichtbar"); melde() }
+    }
+
+    /// Ordner in «Ordner als Arbeitsbereich».
+    static var arbeitsbereichOrdner: [String] {
+        get { ablage.stringArray(forKey: "ArbeitsbereichOrdner") ?? [] }
+        set { ablage.set(newValue, forKey: "ArbeitsbereichOrdner"); melde() }
     }
 
     /// Die Funktionsliste rechts im Fenster.

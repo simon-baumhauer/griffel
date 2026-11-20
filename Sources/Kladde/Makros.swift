@@ -132,46 +132,20 @@ final class Makros {
     }
 }
 
-/// Das Menü «Makro». Die gesicherten Makros stehen unten und werden beim
-/// Öffnen des Menüs neu eingetragen.
-final class MakroMenue: NSObject, NSMenuDelegate, NSMenuItemValidation {
+/// Das Menü «Makros»: oben die Befehle von Notepad++, darunter die
+/// gesicherten Makros und «Makro löschen», bei jedem Öffnen neu eingetragen.
+final class MakroMenue: NSObject, NSMenuDelegate {
     static let gemeinsam = MakroMenue()
-
-    private let aufnahme = NSMenuItem(title: "Aufnahme starten", action: #selector(EditorFenster.makroAufnahme(_:)), keyEquivalent: "r")
-    private var festeEintraege = 0
-
-    func menue() -> NSMenuItem {
-        aufnahme.keyEquivalentModifierMask = [.command, .shift]
-        let abspielen = NSMenuItem(title: "Abspielen", action: #selector(EditorFenster.makroAbspielen(_:)), keyEquivalent: "p")
-        abspielen.keyEquivalentModifierMask = [.command, .shift]
-        let menue = NSMenu(title: "Makro")
-        menue.delegate = self
-        for eintrag in [
-            aufnahme, abspielen,
-            NSMenuItem(title: "Mehrfach abspielen …", action: #selector(EditorFenster.makroMehrfach(_:)), keyEquivalent: ""),
-            NSMenuItem(title: "Aufgenommenes Makro sichern …", action: #selector(EditorFenster.makroSichern(_:)), keyEquivalent: ""),
-            .separator(),
-        ] {
-            menue.addItem(eintrag)
-        }
-        festeEintraege = menue.items.count
-        let kopf = NSMenuItem(title: "Makro", action: nil, keyEquivalent: "")
-        kopf.submenu = menue
-        return kopf
-    }
+    var festeEintraege = 0
 
     func menuNeedsUpdate(_ menu: NSMenu) {
-        aufnahme.title = Makros.gemeinsam.nimmtAuf ? "Aufnahme beenden" : "Aufnahme starten"
         while menu.items.count > festeEintraege { menu.removeItem(at: festeEintraege) }
         let gesicherte = Makros.gemeinsam.gesicherte
-        if gesicherte.isEmpty {
-            let leer = NSMenuItem(title: "Keine gesicherten Makros", action: nil, keyEquivalent: "")
-            leer.isEnabled = false
-            menu.addItem(leer)
-            return
-        }
+        guard !gesicherte.isEmpty else { return }
+        menu.addItem(.separator())
         for makro in gesicherte {
-            let eintrag = NSMenuItem(title: makro.name, action: #selector(EditorFenster.makroAbspielen(_:)), keyEquivalent: "")
+            let eintrag = NSMenuItem(title: makro.name, action: #selector(spiele(_:)), keyEquivalent: "")
+            eintrag.target = self
             eintrag.representedObject = makro.name
             menu.addItem(eintrag)
         }
@@ -188,6 +162,13 @@ final class MakroMenue: NSObject, NSMenuDelegate, NSMenuItemValidation {
         menu.addItem(kopf)
     }
 
+    @objc private func spiele(_ sender: NSMenuItem) {
+        guard let name = sender.representedObject as? String, let e = Hauptfenster.gemeinsam.aktiv,
+            let makro = Makros.gemeinsam.gesicherte.first(where: { $0.name == name })
+        else { return }
+        Makros.gemeinsam.spiele(makro.schritte, in: e)
+    }
+
     @objc private func loescheMakro(_ sender: NSMenuItem) {
         guard let name = sender.representedObject as? String else { return }
         let frage = NSAlert()
@@ -196,6 +177,78 @@ final class MakroMenue: NSObject, NSMenuDelegate, NSMenuItemValidation {
         frage.addButton(withTitle: "Abbrechen")
         if frage.runModal() == .alertFirstButtonReturn { Makros.gemeinsam.loesche(name) }
     }
+}
 
-    func validateMenuItem(_ menuItem: NSMenuItem) -> Bool { true }
+/// Die Dialoge «Aufgenommenes Makro speichern» und «Makro mehrfach ausführen».
+enum MakroDialoge {
+    static func sichern(fenster: NSWindow?) {
+        let makros = Makros.gemeinsam
+        if makros.nimmtAuf { makros.beende() }
+        guard let fenster, !makros.aktuelles.isEmpty else { return NSSound.beep() }
+        let frage = NSAlert()
+        frage.messageText = Oberflaeche.gemeinsam.titel("IDM_MACRO_SAVECURRENTMACRO").replacingOccurrences(of: " …", with: "")
+        frage.informativeText = "\(makros.aktuelles.count) Schritte. Unter diesem Namen steht es im Menü «Makros»."
+        let feld = NSTextField(frame: NSRect(x: 0, y: 0, width: 240, height: 24))
+        feld.placeholderString = "Name"
+        frage.accessoryView = feld
+        frage.addButton(withTitle: "OK")
+        frage.addButton(withTitle: "Abbrechen")
+        frage.window.initialFirstResponder = feld
+        frage.beginSheetModal(for: fenster) { antwort in
+            let name = feld.stringValue.trimmingCharacters(in: .whitespaces)
+            guard antwort == .alertFirstButtonReturn, !name.isEmpty else { return }
+            makros.sichere(name)
+        }
+    }
+
+    /// Wie «Run a Macro Multiple Times» in Notepad++: n-mal oder bis zum Ende der Datei.
+    static func mehrfach(fenster: NSWindow?, editor e: Editor) {
+        let makros = Makros.gemeinsam
+        if makros.nimmtAuf { makros.beende() }
+        guard let fenster else { return }
+        let auswahl = NSPopUpButton()
+        auswahl.addItem(withTitle: "Aktuell aufgenommenes Makro")
+        for makro in makros.gesicherte { auswahl.addItem(withTitle: makro.name) }
+        let nMal = NSButton(radioButtonWithTitle: "Ausführen:", target: nil, action: nil)
+        let bisEnde = NSButton(radioButtonWithTitle: "Bis zum Dateiende ausführen", target: nil, action: nil)
+        nMal.state = .on
+        let anzahl = NSTextField(string: "1")
+        anzahl.widthAnchor.constraint(equalToConstant: 60).isActive = true
+        let zeileN = NSStackView(views: [nMal, anzahl, NSTextField(labelWithString: "mal")])
+        let stapel = NSStackView(views: [auswahl, zeileN, bisEnde])
+        stapel.orientation = .vertical
+        stapel.alignment = .leading
+        stapel.frame = NSRect(x: 0, y: 0, width: 320, height: 90)
+        let gruppe = RadioGruppe([nMal, bisEnde])
+        for k in [nMal, bisEnde] {
+            k.target = gruppe
+            k.action = #selector(RadioGruppe.gewaehlt(_:))
+        }
+        let frage = NSAlert()
+        frage.messageText = Oberflaeche.gemeinsam.titel("IDM_MACRO_RUNMULTIMACRODLG").replacingOccurrences(of: " …", with: "")
+        frage.accessoryView = stapel
+        frage.addButton(withTitle: "Ausführen")
+        frage.addButton(withTitle: "Abbrechen")
+        frage.beginSheetModal(for: fenster) { antwort in
+            _ = gruppe
+            guard antwort == .alertFirstButtonReturn else { return }
+            let schritte = auswahl.indexOfSelectedItem == 0
+                ? makros.aktuelles : makros.gesicherte[auswahl.indexOfSelectedItem - 1].schritte
+            if bisEnde.state == .on {
+                makros.spieleBisEnde(schritte, in: e)
+            } else {
+                makros.spiele(schritte, in: e, mal: max(1, min(anzahl.integerValue, 100_000)))
+            }
+        }
+    }
+}
+
+/// Radioknöpfe, die nicht im selben Elternelement liegen, schliessen sich nicht
+/// selbst aus; diese Gruppe tut es.
+final class RadioGruppe: NSObject {
+    private let knoepfe: [NSButton]
+    init(_ knoepfe: [NSButton]) { self.knoepfe = knoepfe }
+    @objc func gewaehlt(_ sender: NSButton) {
+        for k in knoepfe { k.state = k === sender ? .on : .off }
+    }
 }

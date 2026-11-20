@@ -52,6 +52,8 @@ final class BenutzersprachenMenue: NSObject, NSMenuDelegate {
         meldung.runModal()
     }
 
+    func zeigeOrdnerOeffentlich() { zeigeOrdner() }
+
     @objc private func zeigeOrdner() {
         let ordner = Sprachdaten.benutzersprachenOrdner
         try? FileManager.default.createDirectory(at: ordner, withIntermediateDirectories: true)

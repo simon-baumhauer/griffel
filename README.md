@@ -6,10 +6,14 @@ Ein Texteditor für den Mac nach dem Vorbild von Notepad++.
 
 Der Editor-Kern ist derselbe wie in Notepad++: Scintilla (Bearbeiten, Darstellung) und Lexilla
 (Syntaxfarben), gebaut aus dem Quellcode von Notepad++. Sprachen, Farbschemata, Funktionslisten und
-Autovervollständigung kommen ebenfalls von dort. Die Oberfläche ist neu, in Swift mit AppKit, weil
-die von Notepad++ fest an Windows hängt. Für Apple Silicon und Intel, ab macOS 13.
+Autovervollständigung kommen ebenfalls von dort. Die Oberfläche ist in Swift mit AppKit nachgebaut
+und sieht aus wie die von Notepad++: ein Fenster mit der Werkzeugleiste und ihren Original-Symbolen,
+die Tableiste mit Heften und Schliessen, die Menüs mit allen Befehlen und den Texten der deutschen
+Übersetzung (nicht umgesetzte stehen ausgegraut), der Suchen-Dialog mit seinen vier Reitern, die
+Seitenleisten und die Statusleiste. Nur Fensterrahmen und Menüleiste oben sind vom Mac. Für Apple
+Silicon und Intel, ab macOS 13.
 
-![Kladde mit einer Python-Datei, rechts die Funktionsliste](docs/bilder/kladde.png)
+![Kladde mit einer Python-Datei, links die Dokumentenliste, rechts Funktionsliste und Miniaturansicht](docs/bilder/kladde.png)
 
 ## Was Kladde kann
 
@@ -17,7 +21,9 @@ die von Notepad++ fest an Windows hängt. Für Apple Silicon und Intel, ab macOS
 Windows-1252, Zeilenenden CRLF, LF und CR – erkannt, angezeigt und umstellbar wie im Menü
 «Kodierung» von Notepad++, samt «Neu öffnen als». Die Sitzung: Beim Beenden fragt Kladde nicht nach;
 alle Tabs, auch nie gesicherte, und ungesicherte Änderungen sind beim nächsten Start wieder da, mit
-Einfügemarke, Lesezeichen und vorderem Tab. Alle 10 Sekunden eine Zwischensicherung.
+Einfügemarke, Lesezeichen und vorderem Tab. Alle 10 Sekunden eine Zwischensicherung. Tabs lassen sich
+ziehen, anheften und mit der mittleren Maustaste schliessen; Sitzungen auch als Datei sichern und laden.
+Datei überwachen (wie `tail -f`), umbenennen, in den Papierkorb, drucken.
 
 **Sprachen und Darstellung.** Die 94 Sprachen und 23 Farbschemata von Notepad++. Die Sprache folgt
 aus Dateiname, Endung oder erster Zeile (`#!`, `<?xml`, `<!DOCTYPE html>`), das Menü «Sprache» ist
@@ -26,13 +32,16 @@ Faltung, leuchtende Klammerpaare, Smart Highlighting (ein ausgewähltes Wort leu
 sichtbare Leerzeichen, Tabs und Zeilenenden, Einrückungshilfen, Zeilenumbruch, geteilte Ansicht.
 Benutzerdefinierte Sprachen (UDL) aus Notepad++ lassen sich importieren.
 
-**Suchen.** Suchleiste im Fenster mit den drei Modi von Notepad++ (Normal, Erweitert mit `\n`, `\t`,
-`\x41` …, Regulärer Ausdruck), Gross/klein, ganzes Wort, «3 von 12», Ersetzen mit `$1`, `\1`,
+**Suchen.** Der Dialog «Suchen und ersetzen» von Notepad++ mit den Reitern Suchen, Ersetzen, In
+Dateien suchen und Hervorheben, den drei Modi (Normal, Erweitert mit `\n`, `\t`, `\x41` …,
+Regulärer Ausdruck), Gross/klein, ganzes Wort, Verlauf, Transparenz. Ersetzen mit `$1`, `\1`,
 `\U…\E`, Alle markieren, nur in der Auswahl, in allen offenen Dateien. «In Dateien suchen» mit Filter
-wie `*.swift *.md !*.min.js !\build`, im Hintergrund, mit Ergebnisliste; Ersetzen in Dateien erst
-nach Rückfrage, Zeichensatz, Zeilenenden und Rechte der Dateien bleiben.
+wie `*.swift *.md !*.min.js !\build`, im Hintergrund; Ersetzen in Dateien erst nach Rückfrage,
+Zeichensatz, Zeilenenden und Rechte der Dateien bleiben. Die Treffer stehen unten im Fenster im
+Suchergebnis, eingefärbt und gefaltet wie dort. Dazu die inkrementelle Suche unter dem Text und fünf
+Hervorhebungsstile.
 
-![Suchleiste mit Ersetzen](docs/bilder/suchen.png)
+![Der Suchen-Dialog, Reiter Ersetzen](docs/bilder/suchen.png)
 
 **Bearbeiten.** Zeilen duplizieren, löschen, verschieben, verbinden, sortieren (14 Arten), doppelte
 und leere entfernen, Leerzeichen kürzen, Tabs ↔ Leerzeichen; Gross/klein in acht Arten; Kommentar
@@ -40,33 +49,38 @@ und Blockkommentar umschalten nach den Zeichen der Sprache; Spalteneditor für T
 mehrere Einfügemarken und Rechteckauswahl (⌥ + Ziehen); Lesezeichen; Makros aufnehmen, abspielen,
 mehrfach oder bis zum Ende, unter Namen sichern.
 
-**Hilfen.** Funktionsliste rechts im Fenster (für 44 Sprachen), Vorschläge beim Tippen aus dem Text
-und den Wortlisten von Notepad++ (34 Sprachen) samt Aufrufhilfe, Gehe zu Zeile, zur passenden
-Klammer. Statusleiste mit Sprache, Länge, Position, Auswahl, Zeilenende, Zeichensatz und EINF/ÜB.
+**Seitenleisten und Hilfen.** Funktionsliste (für 44 Sprachen), Dokumentenliste, Miniaturansicht und
+Ordner als Arbeitsbereich. Vorschläge beim Tippen aus dem Text und den Wortlisten von Notepad++
+(34 Sprachen) samt Aufrufhilfe, Gehe zu Zeile, zur passenden Klammer, synchrones Scrollen der
+geteilten Ansicht. Statusleiste wie in Notepad++ («Länge: … Zeilen: …», «Zei: … Spa: … Pos: …»,
+Zeilenende, Zeichensatz, INS/OVR; ein Klick öffnet das passende Menü). Hashwerte (MD5, SHA-1,
+SHA-256, SHA-512), «Ausführen …» mit den Variablen von Notepad++, Datei im Browser öffnen.
 Befehl `kladde` fürs Terminal (in den Einstellungen).
 
 ### Tastenkürzel
 
+Die von Notepad++, mit ⌘ statt Ctrl und ⌥ statt Alt. Wo macOS ⌘ selbst braucht (⌘H, ⌘M, ⌘Q,
+⌘Tab, ⌘Leertaste), steht ⌃. Rückgängig/Wiederholen sind ⌘Z und ⇧⌘Z, Beenden ⌘Q.
+
 | | |
 | --- | --- |
-| ⌘F / ⌥⌘F | Suchen / Ersetzen |
-| ⌘G / ⇧⌘G | Weiter / zurück suchen |
-| ⌘E | Auswahl zum Suchen verwenden |
-| ⇧⌘F | In Dateien suchen |
-| ⌘L | Gehe zu Zeile |
-| ⌘B / ⇧⌘B | Zur passenden Klammer / bis dahin auswählen |
-| ⌘D | Zeile duplizieren |
-| ⇧⌘K | Zeilen löschen |
-| ⌥⌘↑ / ⌥⌘↓ | Zeilen verschieben |
-| ⌃⌘J | Zeilen verbinden |
-| ⌘/ / ⌥⌘/ | Kommentar / Blockkommentar umschalten |
-| ⇧⌘U / ⌥⌘U | GROSS / klein |
-| ⌥⌘C | Spalteneditor |
+| ⌘F / ⌃H / ⇧⌘F | Suchen / Ersetzen / In Dateien suchen |
+| F3 / ⇧F3 | Weitersuchen / rückwärts |
+| ⌥⌘I | Inkrementelle Suche |
+| ⌘G | Gehe zu |
+| ⌘B | Zur passenden Klammer |
+| ⌘D / ⌘L / ⇧⌘L | Zeile duplizieren / ausschneiden / löschen (Scintilla) |
+| ⇧⌘↑ / ⇧⌘↓ | Zeilen verschieben |
+| ⌘J / ⌘I | Zeilen verbinden / teilen |
+| ⌃Q / ⌘K / ⇧⌘K | Kommentar umschalten / setzen / entfernen |
+| ⇧⌘Q | Blockkommentar |
+| ⇧⌘U / ⌘U | GROSS / klein |
+| ⌥C | Spalteneditor |
 | ⌘F2 / F2 / ⇧F2 | Lesezeichen setzen / nächstes / vorheriges |
 | ⇧⌘R / ⇧⌘P | Makro aufnehmen / abspielen |
-| ⌥⌘0 / ⇧⌥⌘0 | Alles ein- / ausklappen |
-| ⌥⌘L | Funktionsliste |
-| ⌥⌘Z | Zeilenumbruch |
+| ⌥0 / ⇧⌥0 | Alles ein- / ausklappen |
+| F5 | Ausführen |
+| F7 / F4 | Suchergebnis / nächster Treffer |
 
 ## Installieren
 
@@ -102,7 +116,7 @@ swift test
 ```
 
 prüft Zeichensätze, Suchen und Ersetzen, die Suche im Ordner, die Zeilen- und Textwerkzeuge,
-Funktionsliste, Autovervollständigung und benutzerdefinierte Sprachen (49 Tests; einige lesen dazu die
+Funktionsliste, Autovervollständigung und benutzerdefinierte Sprachen (51 Tests; einige lesen dazu die
 Dateien von Notepad++). Auf GitHub laufen sie bei jedem Push.
 
 Die App kann sich selbst prüfen und schreibt einen Bericht samt Bildern ihrer Fenster
@@ -116,7 +130,7 @@ open -g -n -W -a build/Kladde.app datei.txt --args -KladdeProbe /tmp/probe -Klad
 
 | Ort | Inhalt |
 | --- | --- |
-| `Sources/Kladde/` | Die App: Dokumente, Fenster, Menüs, Editor, Suchleiste, Ergebnisse, Funktionsliste, Sitzung |
+| `Sources/Kladde/` | Die App: Hauptfenster, Werkzeug-, Tab- und Statusleiste, Befehle der Menüs, Editor, Suchen-Dialog, Suchergebnis, Seitenleisten, Sitzung |
 | `Sources/KladdeKern/` | Ohne Oberfläche und mit Tests: Zeichensätze, Suchen und Ersetzen, Suche im Ordner, Textwerkzeuge, Funktionsliste, Autovervollständigung, UDL |
 | `Tests/KladdeKernTests/` | Tests dazu |
 | `Sources/ScintillaBruecke/` | Macht ScintillaView und Lexilla für Swift sichtbar |
@@ -125,7 +139,9 @@ open -g -n -W -a build/Kladde.app datei.txt --args -KladdeProbe /tmp/probe -Klad
 | `Ressourcen/` | Info.plist, Icon, Befehl `kladde` |
 
 Sprachen und Farbschemata entstehen beim Bauen aus `langs.model.xml`, `stylers.model.xml` und
-`installer/themes/` von Notepad++ (`scripts/sprachdaten.py`). Wie Notepad++ jede Sprache in Scintilla
+`installer/themes/` von Notepad++ (`scripts/sprachdaten.py`). Menüs, Kürzel, Tab-Menü, das Layout des
+Suchen-Dialogs und die deutschen Texte liest `scripts/oberflaeche.py` aus `Notepad_plus.rc`,
+`Parameters.cpp`, `FindReplaceDlg.rc` und `german.xml`; die Symbole kommen aus `src/icons/`. Wie Notepad++ jede Sprache in Scintilla
 einrichtet, steht in `Sources/Kladde/Sprachregeln.swift`.
 
 Die Sitzung liegt unter `~/Library/Application Support/Kladde/Sitzung/`, benutzerdefinierte
@@ -142,13 +158,14 @@ die Sitzung nie an; erst «Sichern» schreibt sie.
 - **Benutzerdefinierte Sprachen** lassen sich importieren (Format ab 2.0), aber nicht in einem Dialog
   bearbeiten.
 - **Plugins** gibt es keine: Die von Notepad++ sind Windows-Programme.
-- **Schrift.** Sie kommt aus den Einstellungen (Vorgabe Menlo 13); die Schriften der Farbschemata
-  (meist Courier New) gelten nicht.
-- **Tastenkürzel** folgen dem Mac (⌘ statt Ctrl) und sind nicht im Programm umstellbar; macOS kann
-  sie unter «Systemeinstellungen → Tastatur → Tastaturkurzbefehle → App-Kurzbefehle» ändern.
+- **Menütexte.** Wo Notepad++ Windows meint, steht der Mac: «Finder» statt «Explorer», «Terminal»
+  statt «Kommandozeile», «Kladde» statt «Notepad++».
+- **Schrift.** Wie im Farbschema (meist Courier New, sonst Menlo), oder fest in den Einstellungen.
+- **Tastenkürzel** sind nicht im Programm umstellbar; macOS kann sie unter «Systemeinstellungen →
+  Tastatur → Tastaturkurzbefehle → App-Kurzbefehle» ändern.
 
 ## Lizenz
 
 GPL v3, wie Notepad++ (siehe [`LICENSE`](LICENSE)). Was von wem stammt, steht in
-[`DRITTE.md`](DRITTE.md). Kladde übernimmt keinen Code von Notepad++, nur dessen Daten und den
-Editor-Kern; «Notepad++» ist der Name des Vorbilds, nicht dieses Programms.
+[`DRITTE.md`](DRITTE.md). Kladde übernimmt keinen Code von Notepad++, nur dessen Daten, Symbole und
+den Editor-Kern; «Notepad++» ist der Name des Vorbilds, nicht dieses Programms.

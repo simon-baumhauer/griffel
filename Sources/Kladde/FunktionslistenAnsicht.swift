@@ -48,7 +48,7 @@ final class FunktionslistenAnsicht: NSView, NSOutlineViewDataSource, NSOutlineVi
         liste.outlineTableColumn = spalte
         liste.headerView = nil
         liste.rowSizeStyle = .small
-        liste.style = .sourceList
+        liste.style = .plain
         liste.dataSource = self
         liste.delegate = self
         liste.target = self
@@ -59,10 +59,17 @@ final class FunktionslistenAnsicht: NSView, NSOutlineViewDataSource, NSOutlineVi
         rollen.documentView = liste
         rollen.hasVerticalScroller = true
         rollen.autohidesScrollers = true
-        rollen.drawsBackground = false
+        rollen.drawsBackground = true
 
-        let kopf = NSStackView(views: [titel, NSView(), sortieren])
-        kopf.views[1].setContentHuggingPriority(.init(1), for: .horizontal)
+        // Den Titel trägt die Seitenleiste; hier nur die Knöpfe, wie die Werkzeugzeile in Notepad++.
+        sortieren.toolTip = Oberflaeche.gemeinsam.texte["FunctionList.SortTip"] ?? "Sortieren"
+        let neu = NSButton(image: NSImage(systemSymbolName: "arrow.clockwise", accessibilityDescription: nil) ?? NSImage(),
+                           target: self, action: #selector(neuAuswerten))
+        neu.isBordered = false
+        neu.toolTip = Oberflaeche.gemeinsam.texte["FunctionList.ReloadTip"] ?? "Aktualisieren"
+        let kopf = NSStackView(views: [sortieren, neu, NSView()])
+        kopf.views[2].setContentHuggingPriority(.init(1), for: .horizontal)
+        _ = titel
         let stapel = NSStackView(views: [kopf, hinweis, rollen])
         stapel.orientation = .vertical
         stapel.alignment = .leading
@@ -124,6 +131,8 @@ final class FunktionslistenAnsicht: NSView, NSOutlineViewDataSource, NSOutlineVi
 
     var anzahl: Int { roh.reduce(0) { $0 + 1 + $1.kinder.count } }
     var namen: [String] { roh.flatMap { [$0.name] + $0.kinder.map { "  " + $0.name } } }
+
+    @objc private func neuAuswerten() { Panels.gemeinsam.dokumentGewechselt() }
 
     @objc private func sortierenGedrueckt() {
         alphabetisch = sortieren.state == .on

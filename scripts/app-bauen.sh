@@ -58,6 +58,12 @@ rm -rf $WURZEL/build/sprachdaten
 python3 -I scripts/sprachdaten.py extern/notepad-plus-plus $WURZEL/build/sprachdaten
 cp -R $WURZEL/build/sprachdaten $APP/Contents/Resources/Sprachdaten
 
+# Symbole von Notepad++ (Werkzeugleiste, Tabs, Seitenleisten), GPL wie Kladde.
+mkdir -p $APP/Contents/Resources/Symbole
+for satz in standard light dark; do
+  cp -R extern/notepad-plus-plus/PowerEditor/src/icons/$satz $APP/Contents/Resources/Symbole/
+done
+
 # Lokale Signatur ohne Entwicklerkonto. Für die Weitergabe signiert
 # scripts/dmg-bauen.sh mit «Developer ID», wenn es eine gibt.
 codesign --force --deep -s - $APP 2>/dev/null

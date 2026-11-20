@@ -1,11 +1,40 @@
 import AppKit
+import ScintillaBruecke
 
-/// Eine geöffnete Datei. Öffnen, Sichern, «Sichern unter», der Punkt im
-/// Schliessknopf und die Nachfrage beim Schliessen kommen von NSDocument.
+/// Eine geöffnete Datei, ein Tab im Hauptfenster. Öffnen, Sichern, «Sichern
+/// unter» und die Nachfrage beim Schliessen kommen von NSDocument; ein eigenes
+/// Fenster hat das Dokument nicht.
 @objc(KladdeDokument)
 final class Dokument: NSDocument {
     private(set) var datei = Textdatei()
     private(set) var editor: Editor?
+
+    // Was Notepad++ je Tab führt.
+    var angeheftet = false
+    /// Tab-Farbe 1–5 (Ansicht → Tabs → Farbe anwenden).
+    var tabFarbe: Int?
+    /// «Schreibschutz in Notepad++»: nur in Kladde, die Datei bleibt, wie sie ist.
+    var schreibgeschuetzt = false {
+        didSet {
+            editor?.nachricht(SCI_SETREADONLY, schreibgeschuetzt ? 1 : 0)
+            Hauptfenster.gemeinsam.tabsGeaendert()
+        }
+    }
+    /// Für neue Dateien die Nummer in «neu 1», «neu 2» …: die kleinste freie.
+    private lazy var neuNummer: Int = {
+        let vergeben = Set(Hauptfenster.gemeinsam.tabs.filter { $0 !== self && $0.fileURL == nil }.map(\.neuNummer))
+        return (1...).first { !vergeben.contains($0) }!
+    }()
+
+    /// Wie der Tab heisst: der Dateiname, oder «neu 1».
+    var tabTitel: String {
+        fileURL?.lastPathComponent ?? (Oberflaeche.gemeinsam.texte["tab-untitled-string"] ?? "neu ") + "\(neuNummer)"
+    }
+
+    override var displayName: String! {
+        get { fileURL == nil ? tabTitel : super.displayName }
+        set { super.displayName = newValue }
+    }
 
     /// Name der Sicherung dieses Dokuments im Ordner der Sitzung.
     let sitzungsId = UUID().uuidString
@@ -24,7 +53,9 @@ final class Dokument: NSDocument {
 
     override class var autosavesInPlace: Bool { false }
 
+    /// Statt eines Fensters ein Tab im Hauptfenster.
     override func makeWindowControllers() {
+        guard editor == nil else { return }
         let editor = Editor()
         editor.lade(datei)
         editor.setzeSprache(sprache())
@@ -33,8 +64,21 @@ final class Dokument: NSDocument {
             self.updateChangeCount(geaendert ? .changeDone : .changeCleared)
         }
         self.editor = editor
-        addWindowController(EditorFenster(editor: editor))
+        _ = neuNummer
+        Hauptfenster.gemeinsam.nimmAuf(self)
         if abweichend { updateChangeCount(.changeDone) }
+    }
+
+    override func showWindows() {
+        Hauptfenster.gemeinsam.nimmAuf(self)
+        Hauptfenster.gemeinsam.showWindow(nil)
+    }
+
+    override var windowForSheet: NSWindow? { Hauptfenster.gemeinsam.window }
+
+    override func close() {
+        Hauptfenster.gemeinsam.entferne(self)
+        super.close()
     }
 
     /// Ein Dokument aus der letzten Sitzung, das dort nicht gesichert war: Der
@@ -74,6 +118,12 @@ final class Dokument: NSDocument {
         super.updateChangeCount(withToken: changeCountToken, for: saveOperation)
         abweichend = false
         editor?.merkeGesichert()
+        Hauptfenster.gemeinsam.tabsGeaendert()
+    }
+
+    override func updateChangeCount(_ change: NSDocument.ChangeType) {
+        super.updateChangeCount(change)
+        Hauptfenster.gemeinsam.tabsGeaendert()
     }
 
     // MARK: Sprache
@@ -105,9 +155,10 @@ final class Dokument: NSDocument {
 
     // MARK: Menü «Kodierung»
 
-    /// Beim nächsten Sichern geht der Text in diesem Zeichensatz auf die Platte.
-    @objc func kodierungUmwandeln(_ sender: NSMenuItem) {
-        guard let neu = Textdatei.Kodierung(rawValue: sender.tag), neu != datei.kodierung else { return }
+    /// Beim nächsten Sichern geht der Text in diesem Zeichensatz auf die Platte
+    /// («Konvertiere zu …» in Notepad++).
+    func wandleUm(in neu: Textdatei.Kodierung) {
+        guard neu != datei.kodierung else { return }
         var probe = aktuell()
         probe.kodierung = neu
         do {
@@ -122,9 +173,9 @@ final class Dokument: NSDocument {
     }
 
     /// Liest die Datei noch einmal und deutet ihre Bytes im genannten
-    /// Zeichensatz — für den Fall, dass die Erkennung danebenlag.
-    @objc func neuOeffnenAls(_ sender: NSMenuItem) {
-        guard let neu = Textdatei.Kodierung(rawValue: sender.tag), let url = fileURL else { return }
+    /// Zeichensatz («Kodieren in …» in Notepad++). Ohne Datei: wie Umwandeln.
+    func oeffneNeu(als neu: Textdatei.Kodierung) {
+        guard let url = fileURL else { return wandleUm(in: neu) }
         let lies = { [self] in
             do {
                 datei = Textdatei(daten: try Data(contentsOf: url), als: neu)
@@ -135,7 +186,7 @@ final class Dokument: NSDocument {
                 presentError(error)
             }
         }
-        guard isDocumentEdited, let fenster = windowControllers.first?.window else { return lies() }
+        guard isDocumentEdited, let fenster = windowForSheet else { return lies() }
         let frage = NSAlert()
         frage.messageText = "«\(displayName ?? "")» neu öffnen als \(neu.name)?"
         frage.informativeText = "Die Änderungen seit dem letzten Sichern gehen dabei verloren."
@@ -146,8 +197,8 @@ final class Dokument: NSDocument {
         }
     }
 
-    @objc func zeilenendeUmwandeln(_ sender: NSMenuItem) {
-        guard let neu = Textdatei.Zeilenende(rawValue: sender.tag), neu != datei.zeilenende else { return }
+    func setzeZeilenende(_ neu: Textdatei.Zeilenende) {
+        guard neu != datei.zeilenende else { return }
         datei.zeilenende = neu
         editor?.wandleZeilenendenUm(in: neu)
         // Ein Text ohne Zeilenende ändert sich nicht; gesichert werden soll trotzdem.
@@ -158,14 +209,6 @@ final class Dokument: NSDocument {
     override func validateUserInterfaceItem(_ item: NSValidatedUserInterfaceItem) -> Bool {
         guard let eintrag = item as? NSMenuItem else { return super.validateUserInterfaceItem(item) }
         switch eintrag.action {
-        case #selector(kodierungUmwandeln(_:)):
-            eintrag.state = eintrag.tag == datei.kodierung.rawValue ? .on : .off
-            return true
-        case #selector(zeilenendeUmwandeln(_:)):
-            eintrag.state = eintrag.tag == datei.zeilenende.rawValue ? .on : .off
-            return true
-        case #selector(neuOeffnenAls(_:)):
-            return fileURL != nil
         case #selector(spracheWaehlen(_:)):
             eintrag.state = (eintrag.representedObject as? String) == editor?.sprache.name ? .on : .off
             return true
@@ -193,22 +236,8 @@ final class Dokument: NSDocument {
 
 /// Kladde öffnet jede Datei als Text, was auch immer das System für ihren Typ hält.
 final class Dokumente: NSDocumentController {
-    /// Die offenen Dokumente in der Reihenfolge ihrer Tabs, Fenster um Fenster.
-    static func inTabfolge() -> [Dokument] {
-        var folge: [Dokument] = []
-        for dokument in shared.documents.compactMap({ $0 as? Dokument })
-        where !folge.contains(where: { $0 === dokument }) {
-            guard let fenster = dokument.windowControllers.first?.window else { continue }
-            for tab in fenster.tabbedWindows ?? [fenster] {
-                if let nachbar = tab.windowController?.document as? Dokument,
-                    !folge.contains(where: { $0 === nachbar })
-                {
-                    folge.append(nachbar)
-                }
-            }
-        }
-        return folge
-    }
+    /// Die offenen Dokumente in der Reihenfolge ihrer Tabs.
+    static func inTabfolge() -> [Dokument] { Hauptfenster.gemeinsam.tabs }
 
     override func documentClass(forType typeName: String) -> AnyClass? { Dokument.self }
     override var defaultType: String? { "public.plain-text" }

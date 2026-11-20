@@ -46,7 +46,7 @@ enum Sitzung {
 
         // Das vorderste Fenster, auch wenn die App gerade nicht aktiv ist
         // (dann gibt es kein mainWindow).
-        let vorne = NSApp.orderedWindows.lazy.compactMap { $0.windowController?.document as? Dokument }.first
+        let vorne = Hauptfenster.gemeinsam.aktivesDokument
         var eintraege: [Eintrag] = []
         var sicherungen: Set<String> = []
         for dokument in Dokumente.inTabfolge() {
@@ -80,6 +80,53 @@ enum Sitzung {
         for datei in (try? dateien.contentsOfDirectory(at: ordner, includingPropertiesForKeys: nil)) ?? []
         where datei.pathExtension == "sicherung" && !sicherungen.contains(datei.lastPathComponent) {
             try? dateien.removeItem(at: datei)
+        }
+    }
+
+    // MARK: Als Datei (Datei → Sitzung speichern/öffnen)
+
+    private struct Datei: Codable {
+        var dateien: [String]
+        var aktiv: Int?
+    }
+
+    /// Speichert die Liste der offenen Dateien (ohne ungesicherte Inhalte) in eine Datei.
+    static func sichereInDatei() {
+        guard let fenster = Hauptfenster.gemeinsam.window else { return }
+        let wahl = NSSavePanel()
+        wahl.nameFieldStringValue = "Sitzung.kladde-sitzung"
+        wahl.beginSheetModal(for: fenster) { antwort in
+            guard antwort == .OK, let ziel = wahl.url else { return }
+            let tabs = Hauptfenster.gemeinsam.tabs
+            let inhalt = Datei(
+                dateien: tabs.compactMap { $0.fileURL?.path },
+                aktiv: tabs.filter { $0.fileURL != nil }.firstIndex { $0 === Hauptfenster.gemeinsam.aktivesDokument })
+            do {
+                let kodierer = JSONEncoder()
+                kodierer.outputFormatting = [.prettyPrinted, .withoutEscapingSlashes]
+                try kodierer.encode(inhalt).write(to: ziel)
+            } catch {
+                NSApp.presentError(error)
+            }
+        }
+    }
+
+    /// Öffnet die Dateien einer gespeicherten Sitzung als weitere Tabs.
+    static func ladeAusDatei() {
+        guard let fenster = Hauptfenster.gemeinsam.window else { return }
+        let wahl = NSOpenPanel()
+        wahl.beginSheetModal(for: fenster) { antwort in
+            guard antwort == .OK, let url = wahl.url else { return }
+            do {
+                let inhalt = try JSONDecoder().decode(Datei.self, from: Data(contentsOf: url))
+                for (i, pfad) in inhalt.dateien.enumerated() {
+                    NSDocumentController.shared.openDocument(withContentsOf: URL(fileURLWithPath: pfad), display: true) { d, _, _ in
+                        if i == inhalt.aktiv, let d = d as? Dokument { Hauptfenster.gemeinsam.aktiviere(d) }
+                    }
+                }
+            } catch {
+                NSApp.presentError(error)
+            }
         }
     }
 
@@ -121,7 +168,7 @@ enum Sitzung {
             if eintrag.aktiv { vorne = dokument }
             geoeffnet += 1
         }
-        vorne?.windowControllers.first?.window?.makeKeyAndOrderFront(nil)
+        if let vorne { Hauptfenster.gemeinsam.aktiviere(vorne) }
         return geoeffnet
     }
 }

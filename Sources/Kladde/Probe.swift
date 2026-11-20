@@ -33,24 +33,24 @@ enum Probe {
         }
 
         bericht.append("menü: " + (NSApp.mainMenu?.items.map(\.title).joined(separator: " | ") ?? "keines"))
-        let vorne = NSApp.orderedWindows.lazy.compactMap { $0.windowController?.document as? Dokument }.first
-        let dokumente = NSDocumentController.shared.documents.compactMap { $0 as? Dokument }
+        let h = Hauptfenster.gemeinsam
+        let vorne = h.aktivesDokument
+        let dokumente = h.tabs
+        let fenster = h.window!
         for (nummer, dokument) in dokumente.enumerated() {
-            guard let fenster = dokument.windowControllers.first?.window, let editor = dokument.editor else {
-                continue
-            }
+            guard let editor = dokument.editor else { continue }
             let anfang = String(decoding: editor.utf8.prefix(40), as: UTF8.self)
                 .replacingOccurrences(of: "\r", with: "\\r").replacingOccurrences(of: "\n", with: "\\n")
             bericht.append(
                 "dokument \(nummer): «\(dokument.displayName ?? "?")» \(dokument.datei.kodierung.name), "
                     + "zeilenende \(dokument.datei.zeilenende), geändert \(dokument.isDocumentEdited), "
-                    + "tabs im fenster \(fenster.tabbedWindows?.count ?? 1), marke \(editor.position)"
+                    + "tabs \(dokumente.count), marke \(editor.position)"
                     + (dokument === vorne ? ", vorne" : "") + ", sprache \(editor.sprache.name)"
                     + (dokument.gewaehlteSprache != nil ? " (gewählt)" : "") + ", text «\(anfang)»")
         }
         for (nummer, dokument) in dokumente.enumerated() {
-            if let fenster = dokument.windowControllers.first?.window {
-                fenster.makeKeyAndOrderFront(nil)
+            do {
+                h.aktiviere(dokument)
                 bild(von: fenster, nach: ordner.appendingPathComponent("fenster-\(nummer).png"))
             }
         }
@@ -62,6 +62,9 @@ enum Probe {
         case "etappe5":
             etappe5(ordner: ordner, bericht: { bericht.append($0) }, fertig: schliesse)
             return
+        case "oberflaeche":
+            oberflaeche(ordner: ordner, bericht: { bericht.append($0) }, fertig: schliesse)
+            return
         case "suchen":
             sucheProbe(dokumente: dokumente, ordner: ordner, bericht: { bericht.append($0) }, fertig: schliesse)
             return
@@ -69,13 +72,13 @@ enum Probe {
             for dokument in dokumente {
                 dokument.editor?.ansicht.insertText("ungesichert ✓\n")
             }
-            if let erstes = dokumente.first { erstes.kodierungUmwandeln(eintrag(Textdatei.Kodierung.utf16LE.rawValue)) }
+            if let erstes = dokumente.first { erstes.wandleUm(in: .utf16LE) }
             if dokumente.count > 1, let letztes = dokumente.last {
-                letztes.zeilenendeUmwandeln(eintrag(Textdatei.Zeilenende.crlf.rawValue))
+                letztes.setzeZeilenende(.crlf)
             }
             bericht.append("getippt in \(dokumente.count), geändert: "
                 + dokumente.map { String($0.isDocumentEdited) }.joined(separator: " "))
-            vorne?.windowControllers.first?.window?.makeKeyAndOrderFront(nil)
+            if let vorne { h.aktiviere(vorne) }
             return schliesse()
         case "nichts":
             return schliesse()
@@ -85,11 +88,10 @@ enum Probe {
             let vorher = (Einstellungen.farbschema, Einstellungen.leerzeichenZeigen, Einstellungen.zeilenendenZeigen)
             var schritte: [() -> Void] = []
             for (nummer, dokument) in dokumente.enumerated() {
-                guard let fenster = dokument.windowControllers.first?.window, let editor = dokument.editor else {
-                    continue
-                }
+                guard let editor = dokument.editor else { continue }
+                schritte.append { h.aktiviere(dokument) }
                 for schema in ["Standard", "DarkModeDefault", "Monokai"] {
-                    schritte.append { Einstellungen.farbschema = schema; fenster.makeKeyAndOrderFront(nil) }
+                    schritte.append { Einstellungen.farbschema = schema }
                     schritte.append { bild(von: fenster, nach: ordner.appendingPathComponent("\(nummer)-\(schema).png")) }
                 }
                 schritte.append {
@@ -115,8 +117,8 @@ enum Probe {
                 }
             }
             // «Automatisch» bei dunklem macOS (hier nur für die App umgestellt).
-            if let fenster = dokumente.first?.windowControllers.first?.window {
-                schritte.append { Einstellungen.farbschema = ""; NSApp.appearance = NSAppearance(named: .darkAqua) }
+            if let erstes = dokumente.first {
+                schritte.append { h.aktiviere(erstes); Einstellungen.farbschema = ""; NSApp.appearance = NSAppearance(named: .darkAqua) }
                 schritte.append {}
                 schritte.append { bild(von: fenster, nach: ordner.appendingPathComponent("0-automatisch-dunkel.png")) }
                 schritte.append { NSApp.appearance = nil }
@@ -145,14 +147,14 @@ enum Probe {
                 bericht.append("kodierung: kein Dokument mit Datei")
                 return schliesse()
             }
-            dokument.kodierungUmwandeln(eintrag(Textdatei.Kodierung.utf16LE.rawValue))
+            dokument.wandleUm(in: .utf16LE)
             bericht.append("umgestellt: \(dokument.datei.kodierung.name), geändert \(dokument.isDocumentEdited)")
             dokument.save(to: ziel, ofType: "public.plain-text", for: .saveOperation) { fehler in
                 let bytes = (try? Data(contentsOf: ziel)) ?? Data()
                 bericht.append(
                     "gesichert: fehler \(fehler?.localizedDescription ?? "keiner"), geändert \(dokument.isDocumentEdited), "
                         + "erste bytes \(bytes.prefix(6).map { String(format: "%02x", $0) }.joined(separator: " "))")
-                dokument.neuOeffnenAls(eintrag(Textdatei.Kodierung.windows1252.rawValue))
+                dokument.oeffneNeu(als: .windows1252)
                 let text = String(decoding: dokument.editor?.utf8.prefix(12) ?? Data(), as: UTF8.self)
                 bericht.append(
                     "neu geöffnet als \(dokument.datei.kodierung.name), geändert \(dokument.isDocumentEdited), "
@@ -196,13 +198,11 @@ enum Probe {
     private static func sucheProbe(
         dokumente: [Dokument], ordner: URL, bericht: @escaping (String) -> Void, fertig: @escaping () -> Void
     ) {
-        guard let fensterKontrolle = NSApp.orderedWindows.lazy.compactMap({ $0.windowController as? EditorFenster }).first,
-            let fenster = fensterKontrolle.window
-        else {
-            bericht("suchen: kein Fenster")
+        let h = Hauptfenster.gemeinsam
+        guard let fenster = h.window, let editor = h.editor else {
+            bericht("suchen: kein Dokument")
             return fertig()
         }
-        let editor = fensterKontrolle.editor
         let vorher = SuchZustand.gemeinsam.optionen
         func setze(_ text: String, ersetzung: String = "", modus: SuchOptionen.Modus = .normal, ganzesWort: Bool = false) {
             var o = SuchOptionen()
@@ -225,12 +225,20 @@ enum Probe {
 
         schritt {
             editor.waehleAus(0..<0)
-            fensterKontrolle.oeffneSuche(ersetzen: true)
             setze("bern")
+            SuchenDialog.gemeinsam.zeige(.ersetzen)
             let antwort = Suchaktion.live(in: editor, ab: 0)
             bericht("live «bern»: \(antwort.text), auswahl \(zeigeAuswahl()), hinterlegt \(editor.anzahlMarkierungen(Editor.indikatorSuche))")
         }
-        schritt { bild(von: fenster, nach: ordner.appendingPathComponent("leiste.png")) }
+        schritt {
+            if let w = SuchenDialog.gemeinsam.window { bild(von: w, nach: ordner.appendingPathComponent("dialog-ersetzen.png")) }
+            for (r, name) in [(SuchenDialog.Reiter.suchen, "suchen"), (.inDateien, "indateien"), (.markieren, "markieren")] {
+                SuchenDialog.gemeinsam.zeige(r)
+                if let w = SuchenDialog.gemeinsam.window { bild(von: w, nach: ordner.appendingPathComponent("dialog-\(name).png")) }
+            }
+            SuchenDialog.gemeinsam.close()
+            fenster.makeKeyAndOrderFront(nil)
+        }
         schritt {
             let a = Suchaktion.weiter(in: editor)
             let b = Suchaktion.weiter(in: editor)
@@ -264,7 +272,6 @@ enum Probe {
         }
         schritt {
             // Smart Highlighting: ein ganzes Wort auswählen.
-            fensterKontrolle.schliesseSuche()
             editor.markierungenLoeschenFuerProbe()
             let text = editor.suchtext
             var o = SuchOptionen()
@@ -285,31 +292,34 @@ enum Probe {
             bericht("alle finden in offenen: \(antwort.text)")
         }
         schritt {
-            if let w = Suchergebnisse.gemeinsam.window { bild(von: w, nach: ordner.appendingPathComponent("ergebnisse-offen.png")) }
+            bild(von: fenster, nach: ordner.appendingPathComponent("ergebnisse-offen.png"))
         }
         if let pfad = UserDefaults.standard.string(forKey: "KladdeProbeOrdner") {
             warte { weiter in
-                DateiSuche.gemeinsam.zeige(ordnerVon: nil)
-                DateiSuche.gemeinsam.setze(ordner: pfad, filter: "*.txt !\\ausgelassen")
                 setze("Bern")
-                DateiSuche.gemeinsam.starte(ersetzen: false) { satz in
+                SuchenDialog.gemeinsam.zeige(.inDateien, ordner: pfad)
+                SuchenDialog.gemeinsam.setze(ordner: pfad, filter: "*.txt !\\ausgelassen")
+                SuchenDialog.gemeinsam.starteDateisuche(ersetzen: false) { satz in
                     bericht("ordner finden: \(satz)")
                     weiter()
                 }
             }
             schritt {
-                if let w = Suchergebnisse.gemeinsam.window { bild(von: w, nach: ordner.appendingPathComponent("ergebnisse-ordner.png")) }
-                if let w = DateiSuche.gemeinsam.window { bild(von: w, nach: ordner.appendingPathComponent("dateisuche.png")) }
+                bild(von: fenster, nach: ordner.appendingPathComponent("ergebnisse-ordner.png"))
+                if let w = SuchenDialog.gemeinsam.window { bild(von: w, nach: ordner.appendingPathComponent("dateisuche.png")) }
             }
             warte { weiter in
                 setze("Bern", ersetzung: "Zürich")
-                DateiSuche.gemeinsam.starte(ersetzen: true, bestaetigt: true) { satz in
+                SuchenDialog.gemeinsam.starteDateisuche(ersetzen: true, bestaetigt: true) { satz in
                     bericht("ordner ersetzen: \(satz)")
                     weiter()
                 }
             }
         }
-        schritt { SuchZustand.gemeinsam.optionen = vorher }
+        schritt {
+            SuchenDialog.gemeinsam.close()
+            SuchZustand.gemeinsam.optionen = vorher
+        }
 
         func fuehreAus(_ index: Int) {
             guard index < schritte.count else { return fertig() }
@@ -324,26 +334,25 @@ enum Probe {
     /// Funktionsliste, Vorschläge, Aufrufhilfe und benutzerdefinierte Sprache. Erwartet
     /// als erstes Dokument eine Python-Datei und als zweites eine Datei der Test-UDL.
     private static func etappe6(ordner: URL, bericht: @escaping (String) -> Void, fertig: @escaping () -> Void) {
-        let fensterliste = NSApp.orderedWindows.compactMap { $0.windowController as? EditorFenster }
-        let dokumente = Dokumente.inTabfolge()
-        guard let python = dokumente.first(where: { $0.editor?.sprache.name == "python" }),
-            let pf = python.windowControllers.first as? EditorFenster, let pfenster = pf.window
+        let h = Hauptfenster.gemeinsam
+        let dokumente = h.tabs
+        guard let python = dokumente.first(where: { $0.editor?.sprache.name == "python" }), let e = python.editor,
+            let fenster = h.window
         else {
-            bericht("etappe6: keine Python-Datei offen (\(fensterliste.count) Fenster)")
+            bericht("etappe6: keine Python-Datei offen")
             return fertig()
         }
-        let e = pf.editor
         let vorher = Einstellungen.funktionslisteSichtbar
         var schritte: [() -> Void] = []
         schritte.append {
-            pfenster.makeKeyAndOrderFront(nil)
+            h.aktiviere(python)
             Einstellungen.funktionslisteSichtbar = true
         }
         schritte.append {}
         schritte.append {}
         schritte.append {
-            bericht("funktionsliste: \(pf.funktionslisteNamen)")
-            bild(von: pfenster, nach: ordner.appendingPathComponent("funktionsliste.png"))
+            bericht("funktionsliste: \(Panels.gemeinsam.funktionsliste.namen)")
+            bild(von: fenster, nach: ordner.appendingPathComponent("funktionsliste.png"))
         }
         schritte.append {
             e.waehleAus(e.laenge..<e.laenge)
@@ -351,30 +360,27 @@ enum Probe {
         }
         schritte.append {
             bericht("vorschläge nach «isinst»: offen \(e.vorschlagOffen)")
-            bild(von: pfenster, nach: ordner.appendingPathComponent("vorschlaege.png"))
+            bild(von: fenster, nach: ordner.appendingPathComponent("vorschlaege.png"))
             _ = e.ansicht.message(UInt32(SCI_AUTOCCANCEL), wParam: 0, lParam: 0)
             e.ansicht.insertText("\nlen(")
         }
         schritte.append {
             bericht("aufrufhilfe nach «len(»: offen \(e.aufrufhilfeOffen)")
-            bild(von: pfenster, nach: ordner.appendingPathComponent("aufrufhilfe.png"))
+            bild(von: fenster, nach: ordner.appendingPathComponent("aufrufhilfe.png"))
             _ = e.ansicht.message(UInt32(SCI_CALLTIPCANCEL), wParam: 0, lParam: 0)
         }
         schritte.append {
-            let eigene = dokumente.first { $0.editor?.sprache.istBenutzersprache ?? false }
-            guard let eigene, let ef = eigene.windowControllers.first as? EditorFenster, let ed = eigene.editor else {
+            guard let eigene = dokumente.first(where: { $0.editor?.sprache.istBenutzersprache ?? false }), let ed = eigene.editor else {
                 bericht("udl: kein Dokument erkannt; geladen \(Sprachdaten.gemeinsam.benutzersprachen.keys.sorted()), fehler \(Sprachdaten.gemeinsam.benutzerspracheFehler)")
                 return
             }
-            ef.window?.makeKeyAndOrderFront(nil)
+            h.aktiviere(eigene)
             let text = String(decoding: ed.utf8, as: UTF8.self)
             let stelle = text.utf8.count - (text.components(separatedBy: "WENN").last?.utf8.count ?? 0) - 4
             bericht("udl: sprache \(ed.sprache.name), stil von «WENN» \(ed.stil(bei: max(0, stelle))) (Keywords1 = 4)")
         }
         schritte.append {
-            if let w = NSApp.orderedWindows.first(where: { ($0.windowController as? EditorFenster)?.editor.sprache.istBenutzersprache ?? false }) {
-                bild(von: w, nach: ordner.appendingPathComponent("udl.png"))
-            }
+            bild(von: fenster, nach: ordner.appendingPathComponent("udl.png"))
             Einstellungen.funktionslisteSichtbar = vorher
             for d in dokumente { d.updateChangeCount(.changeCleared) }
         }
@@ -387,68 +393,62 @@ enum Probe {
     }
 
     /// Zeilenbefehle, Kommentare, Gross/klein, Lesezeichen, Makro, Spalteneditor,
-    /// geteilte Ansicht, Statusleiste und Einstellungen am vordersten Dokument.
+    /// geteilte Ansicht, Statusleiste und Einstellungen am vordersten Dokument —
+    /// alles über die Befehle der Menüs (IDM_…).
     private static func etappe5(ordner: URL, bericht: @escaping (String) -> Void, fertig: @escaping () -> Void) {
-        guard let f = NSApp.orderedWindows.lazy.compactMap({ $0.windowController as? EditorFenster }).first,
-            let fenster = f.window
-        else {
-            bericht("etappe5: kein Fenster")
+        let h = Hauptfenster.gemeinsam
+        guard let fenster = h.window, let e = h.editor else {
+            bericht("etappe5: kein Dokument")
             return fertig()
         }
-        let e = f.editor
         func text() -> String { String(decoding: e.utf8, as: UTF8.self).replacingOccurrences(of: "\n", with: "⏎") }
         func setze(_ t: String) {
             e.ersetze([(0..<e.laenge, t)])
             e.waehleAus(0..<0)
         }
-        func menue(_ tag: Int) -> NSMenuItem { eintrag(tag) }
-        func wert(_ w: String) -> NSMenuItem {
-            let m = NSMenuItem()
-            m.representedObject = w
-            return m
-        }
+        func befehl(_ id: String) { h.fuehreAus(id) }
         var schritte: [() -> Void] = []
 
         schritte.append {
             setze("birne\nApfel\n10\napfel\n\n2\nApfel\n")
-            f.sortiere(wert("aufsteigend"))
+            befehl("IDM_EDIT_SORTLINES_LEXICOGRAPHIC_ASCENDING")
             bericht("sortiert: \(text())")
-            f.sortiere(wert("ganzzahlAuf"))
+            befehl("IDM_EDIT_SORTLINES_INTEGER_ASCENDING")
             bericht("als Zahlen: \(text())")
-            f.zeilenBefehl(menue(1))
+            befehl("IDM_EDIT_REMOVE_ANY_DUP_LINES")
             bericht("ohne Doppelte: \(text())")
-            f.zeilenBefehl(menue(3))
+            befehl("IDM_EDIT_REMOVEEMPTYLINES")
             bericht("ohne Leere: \(text())")
             setze("a  \n\tb\t\n")
-            f.zeilenBefehl(menue(12))
+            befehl("IDM_EDIT_TRIM_BOTH")
             bericht("gekürzt: \(text())")
         }
         schritte.append {
             setze("def f():\n    return 1\n")
-            (f.document as? Dokument)?.gewaehlteSprache = "python"
+            h.aktivesDokument?.gewaehlteSprache = "python"
             e.setzeSprache(Sprachdaten.gemeinsam.sprache("python")!)
             e.waehleAus(0..<e.laenge)
-            f.kommentar(nil)
+            befehl("IDM_EDIT_BLOCK_COMMENT")
             bericht("kommentiert (python): \(text())")
-            f.kommentar(nil)
+            befehl("IDM_EDIT_BLOCK_COMMENT")
             bericht("zurück: \(text())")
             setze("grüezi wohl")
             e.waehleAus(0..<e.laenge)
-            f.schreibung(wert("woerterGross"))
+            befehl("IDM_EDIT_PROPERCASE_FORCE")
             bericht("Wörter gross: \(text())")
             e.waehleAus(0..<0)
-            f.dupliziere(nil)
+            befehl("IDM_EDIT_DUP_LINE")
             bericht("dupliziert: \(text())")
         }
         schritte.append {
             setze("eins\nzwei\ndrei\nvier\nfünf")
             e.lesezeichen = [1, 3]
             e.geheZuZeile(1)
-            f.naechstesLesezeichen(nil)
+            befehl("IDM_SEARCH_NEXT_BOOKMARK")
             let erste = e.aktuelleZeile
-            f.naechstesLesezeichen(nil)
+            befehl("IDM_SEARCH_NEXT_BOOKMARK")
             bericht("lesezeichen \(e.lesezeichen), springt zu Zeile \(erste) und \(e.aktuelleZeile), text «\(e.lesezeichenText().replacingOccurrences(of: "\n", with: "⏎"))»")
-            f.zeilenOhneLesezeichenLoeschen(nil)
+            befehl("IDM_SEARCH_DELETEUNMARKEDLINES")
             bericht("nur Zeilen mit Lesezeichen: \(text())")
         }
         schritte.append {
@@ -462,7 +462,6 @@ enum Probe {
             bericht("makro: \(Makros.gemeinsam.aktuelles.count) Schritte, nach Aufnahme: \(text())")
             let mal = Makros.gemeinsam.spieleBisEnde(Makros.gemeinsam.aktuelles, in: e)
             bericht("bis zum Ende (\(mal)×): \(text())")
-            // Längere letzte Zeile: darf nicht ewig an ihr weiterschreiben.
             setze("aa\nbb\ncc\nlange letzte Zeile")
             e.geheZuZeile(2)
             let mal2 = Makros.gemeinsam.spieleBisEnde(Makros.gemeinsam.aktuelles, in: e)
@@ -481,28 +480,94 @@ enum Probe {
             setze((1...40).map { "Zeile \($0) mit etwas Text" }.joined(separator: "\n"))
             e.lesezeichen = [2, 5]
             e.waehleAus(30..<45)
-            f.teile(1)
+            befehl("IDM_VIEW_CLONE_TO_ANOTHER_VIEW")
         }
         schritte.append {
-            bericht("geteilt: \(f.geteilt), statusleiste sichtbar")
+            bericht("geteilt: \(h.geteilt), statusleiste «\(h.statusleiste.texte.joined(separator: " | "))»")
             bild(von: fenster, nach: ordner.appendingPathComponent("geteilt.png"))
-            f.teile(0)
-            bericht("wieder eine Ansicht: \(f.geteilt)")
+            h.teile(nebeneinander: nil)
+            bericht("wieder eine Ansicht: \(h.geteilt)")
         }
-        schritte.append {
-            EinstellungsFenster.gemeinsam.zeige()
-        }
+        schritte.append { EinstellungsFenster.gemeinsam.zeige() }
         schritte.append {
             if let w = EinstellungsFenster.gemeinsam.window { bild(von: w, nach: ordner.appendingPathComponent("einstellungen.png")) }
             EinstellungsFenster.gemeinsam.close()
-            // Probeinhalt verwerfen, damit die Sitzung ihn nicht aufhebt.
             setze("")
-            (f.document as? Dokument)?.updateChangeCount(.changeCleared)
+            h.aktivesDokument?.updateChangeCount(.changeCleared)
         }
         func fuehreAus(_ i: Int) {
             guard i < schritte.count else { return fertig() }
             schritte[i]()
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { fuehreAus(i + 1) }
+        }
+        fuehreAus(0)
+    }
+
+    /// Bilder der Oberfläche: Fenster hell und dunkel, Seitenleisten, Suchergebnis,
+    /// inkrementelle Suche, Menüs als Text (ausgegraute Einträge mit «·»).
+    private static func oberflaeche(ordner: URL, bericht: @escaping (String) -> Void, fertig: @escaping () -> Void) {
+        let h = Hauptfenster.gemeinsam
+        guard let fenster = h.window else { return fertig() }
+        fenster.setContentSize(NSSize(width: 1100, height: 720))
+        let vorher = (Einstellungen.funktionslisteSichtbar, Einstellungen.dokumentenlisteSichtbar,
+                      Einstellungen.miniaturansichtSichtbar, Einstellungen.farbschema)
+        var schritte: [() -> Void] = []
+        schritte.append {
+            var zeilen: [String] = []
+            for oben in NSApp.mainMenu?.items ?? [] {
+                guard let m = oben.submenu else { continue }
+                m.update()
+                zeilen.append("[\(oben.title)]")
+                func gehe(_ m: NSMenu, _ tiefe: Int) {
+                    for i in m.items {
+                        if i.isSeparatorItem { continue }
+                        let k = i.keyEquivalent.isEmpty ? "" : "  \(i.keyEquivalentModifierMask.contains(.control) ? "⌃" : "")\(i.keyEquivalentModifierMask.contains(.option) ? "⌥" : "")\(i.keyEquivalentModifierMask.contains(.shift) ? "⇧" : "")\(i.keyEquivalentModifierMask.contains(.command) ? "⌘" : "")\(i.keyEquivalent.uppercased())"
+                        let an = h.validateMenuItem(i) || i.submenu != nil || i.target !== h
+                        zeilen.append(String(repeating: "  ", count: tiefe) + (an ? "" : "· ") + i.title + k)
+                        if let s = i.submenu { s.update(); gehe(s, tiefe + 1) }
+                    }
+                }
+                gehe(m, 1)
+            }
+            try? zeilen.joined(separator: "\n").write(to: ordner.appendingPathComponent("menues.txt"), atomically: true, encoding: .utf8)
+            bericht("menüs: \(zeilen.count) Zeilen, ausgegraut \(zeilen.filter { $0.contains("· ") }.count)")
+        }
+        schritte.append { bild(von: fenster, nach: ordner.appendingPathComponent("ui-hell.png")) }
+        schritte.append {
+            Einstellungen.funktionslisteSichtbar = true
+            Einstellungen.dokumentenlisteSichtbar = true
+            Einstellungen.miniaturansichtSichtbar = true
+            Panels.gemeinsam.anwenden()
+            h.ordneDocks()
+        }
+        schritte.append {}
+        schritte.append { bild(von: fenster, nach: ordner.appendingPathComponent("ui-seitenleisten.png")) }
+        schritte.append {
+            var o = SuchOptionen()
+            o.text = "e"
+            SuchZustand.gemeinsam.optionen = o
+            _ = Suchergebnisse.gemeinsam.findeAlle(in: h.tabs)
+            h.fuehreAus("IDM_SEARCH_FINDINCREMENT")
+        }
+        schritte.append {}
+        schritte.append { bild(von: fenster, nach: ordner.appendingPathComponent("ui-suchergebnis.png")) }
+        schritte.append {
+            Einstellungen.farbschema = "DarkModeDefault"
+            NSApp.appearance = NSAppearance(named: .darkAqua)
+        }
+        schritte.append {}
+        schritte.append { bild(von: fenster, nach: ordner.appendingPathComponent("ui-dunkel.png")) }
+        schritte.append {
+            NSApp.appearance = nil
+            (Einstellungen.funktionslisteSichtbar, Einstellungen.dokumentenlisteSichtbar,
+             Einstellungen.miniaturansichtSichtbar, Einstellungen.farbschema) = vorher
+            Suchergebnisse.gemeinsam.verberge()
+            Panels.gemeinsam.anwenden()
+        }
+        func fuehreAus(_ i: Int) {
+            guard i < schritte.count else { return fertig() }
+            schritte[i]()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { fuehreAus(i + 1) }
         }
         fuehreAus(0)
     }

@@ -11,6 +11,7 @@ public enum Zeilenwerkzeug {
         case dezimalPunktAuf, dezimalPunktAb
         case dezimalKommaAuf, dezimalKommaAb
         case laengeAuf, laengeAb
+        case gebietsschemaAuf, gebietsschemaAb
         case umkehren, zufaellig
 
         public var name: String {
@@ -27,6 +28,8 @@ public enum Zeilenwerkzeug {
             case .dezimalKommaAb: return "Als Dezimalzahlen (1,5) absteigend"
             case .laengeAuf: return "Nach Länge aufsteigend"
             case .laengeAb: return "Nach Länge absteigend"
+            case .gebietsschemaAuf: return "Nach Gebietsschema aufsteigend"
+            case .gebietsschemaAb: return "Nach Gebietsschema absteigend"
             case .umkehren: return "Reihenfolge umkehren"
             case .zufaellig: return "Zufällig"
             }
@@ -65,6 +68,8 @@ public enum Zeilenwerkzeug {
         case .dezimalKommaAb: return nachZahl({ dezimal($0, komma: true) }, absteigend: true)
         case .laengeAuf: return stabil { $0.count < $1.count }
         case .laengeAb: return stabil { $0.count > $1.count }
+        case .gebietsschemaAuf: return stabil { $0.localizedCompare($1) == .orderedAscending }
+        case .gebietsschemaAb: return stabil { $0.localizedCompare($1) == .orderedDescending }
         case .umkehren: return zeilen.reversed()
         case .zufaellig: return zeilen.shuffled()
         }
@@ -149,6 +154,37 @@ public enum Zeilenwerkzeug {
         }
     }
 
+    /// Überall: Leerzeichen bis zu einer Tabstelle werden zu einem Tab (wie
+    /// «Leerzeichen in TAB (alle)» in Notepad++). Einzelne Leerzeichen bleiben.
+    public static func leerzeichenZuTabs(_ zeilen: [String], breite: Int) -> [String] {
+        zeilen.map { zeile in
+            var ergebnis = ""
+            var spalte = 0
+            var leer = 0
+            func schreibeLeer(bisTabstelle: Bool) {
+                if bisTabstelle, leer > 1 { ergebnis.append("\t") } else { ergebnis += String(repeating: " ", count: leer) }
+                leer = 0
+            }
+            for z in zeile {
+                if z == " " {
+                    leer += 1
+                    spalte += 1
+                    if spalte % breite == 0 { schreibeLeer(bisTabstelle: true) }
+                } else if z == "\t" {
+                    leer = 0
+                    ergebnis.append("\t")
+                    spalte += breite - spalte % breite
+                } else {
+                    schreibeLeer(bisTabstelle: false)
+                    ergebnis.append(z)
+                    spalte += 1
+                }
+            }
+            schreibeLeer(bisTabstelle: false)
+            return ergebnis
+        }
+    }
+
     /// Nur die Einrückung: volle Tabbreiten aus Leerzeichen werden zu Tabs.
     public static func fuehrendeLeerzeichenZuTabs(_ zeilen: [String], breite: Int) -> [String] {
         zeilen.map { zeile in
@@ -228,13 +264,15 @@ public enum Kommentar {
     /// Sind alle nicht leeren Zeilen kommentiert, fällt das Zeichen weg (samt
     /// einem Leerzeichen danach); sonst kommt es in alle, auf die kleinste
     /// Einrückung. Leere Zeilen bleiben, wie sie sind.
-    public static func zeilenUmschalten(_ zeilen: [String], zeichen: String) -> [String] {
+    public enum Art { case umschalten, setzen, entfernen }
+
+    public static func zeilenUmschalten(_ zeilen: [String], zeichen: String, art: Art = .umschalten) -> [String] {
         let inhalt = zeilen.filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
         guard !inhalt.isEmpty else { return zeilen }
         let alleKommentiert = inhalt.allSatisfy {
             $0.drop(while: { $0 == " " || $0 == "\t" }).hasPrefix(zeichen)
         }
-        if alleKommentiert {
+        if art == .entfernen || (art == .umschalten && alleKommentiert) {
             return zeilen.map { zeile in
                 let einzug = zeile.prefix { $0 == " " || $0 == "\t" }
                 var rest = zeile.dropFirst(einzug.count)

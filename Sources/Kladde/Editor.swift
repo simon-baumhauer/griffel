@@ -4,7 +4,12 @@ import ScintillaBruecke
 /// Eine ScintillaView samt ihrer Einrichtung. Alles, was die App vom
 /// Editor-Kern will, geht hier durch.
 final class Editor: NSObject, ScintillaNotificationProtocol {
-    let ansicht = ScintillaView(frame: NSRect(x: 0, y: 0, width: 900, height: 650))
+    let ansicht = KladdeScintillaView(frame: NSRect(x: 0, y: 0, width: 900, height: 650))
+    /// Das Kontextmenü beim Rechtsklick (das von Notepad++, nicht das von Scintilla).
+    var kontextmenue: (() -> NSMenu?)? {
+        get { ansicht.kontextmenue }
+        set { ansicht.kontextmenue = newValue }
+    }
 
     /// Der Text weicht vom gesicherten Stand ab (true) oder stimmt wieder (false).
     var geaendert: ((Bool) -> Void)?
@@ -18,6 +23,8 @@ final class Editor: NSObject, ScintillaNotificationProtocol {
     var makroSchritt: ((UInt32, UInt, Int) -> Void)?
 
     private(set) var sprache = Sprachdaten.gemeinsam.normal
+    /// Miniaturansicht: ohne Ränder, stark verkleinert, ohne Rollbalken.
+    var istKarte = false
     private var zeilennummernStellen = 0
     private var klammerMarkiert = false
     private var beobachter: NSObjectProtocol?
@@ -170,8 +177,17 @@ final class Editor: NSObject, ScintillaNotificationProtocol {
 
         // Erst der Standardstil, dann erben alle anderen von ihm. Die Schrift
         // aus dem Schema (meist Courier New 10) gilt nicht; sie kommt aus den Einstellungen.
-        sci(SCI_STYLESETFONT, Int(STYLE_DEFAULT), Einstellungen.schriftName)
-        sci(SCI_STYLESETSIZE, Int(STYLE_DEFAULT), Einstellungen.schriftGroesse)
+        // Ohne eigene Wahl die Schrift des Farbschemas, wie in Notepad++ (dort meist
+        // Courier New 10). 10 Punkt unter Windows (96 dpi) sind auf dem Mac gut 13.
+        let standardStil = global["Default Style"]
+        let schriftart = Einstellungen.schriftName.isEmpty
+            ? (standardStil?.schriftart.flatMap { NSFont(name: $0, size: 12) != nil ? $0 : nil } ?? "Menlo")
+            : Einstellungen.schriftName
+        let groesse = Einstellungen.schriftName.isEmpty
+            ? Int((Double(standardStil?.groesse ?? 10) * 4 / 3).rounded())
+            : Einstellungen.schriftGroesse
+        sci(SCI_STYLESETFONT, Int(STYLE_DEFAULT), schriftart)
+        sci(SCI_STYLESETSIZE, Int(STYLE_DEFAULT), groesse)
         sci(SCI_STYLESETFORE, Int(STYLE_DEFAULT), scintillaFarbe(global["Default Style"]?.vorne ?? 0x000000))
         sci(SCI_STYLESETBACK, Int(STYLE_DEFAULT), scintillaFarbe(global["Default Style"]?.hinten ?? 0xFFFFFF))
         if let standard = global["Default Style"] { setzeSchrift(Int(STYLE_DEFAULT), standard.schrift) }
@@ -221,7 +237,9 @@ final class Editor: NSObject, ScintillaNotificationProtocol {
             (Self.indikatorMarkiert, "Find Mark Style", 0xFF0000),
             (Self.indikatorSmart, "Smart Highlighting", 0x00FF00),
             (Self.indikatorSuche, "Find matches highlight all", 0x0080FF),
-        ]
+        ] + Self.indikatorenStil.enumerated().map { i, ind in
+            (ind, "Mark Style \(i + 1)", [0x00FFFF, 0xFF8000, 0xFFFF00, 0x8000FF, 0x008000][i])
+        }
         for (indikator, name, vorgabe) in indikatoren {
             sci(SCI_INDICSETSTYLE, Int(indikator), Int(INDIC_ROUNDBOX))
             sci(SCI_INDICSETALPHA, Int(indikator), 100)
@@ -234,11 +252,22 @@ final class Editor: NSObject, ScintillaNotificationProtocol {
         }
 
         sci(SCI_SETVIEWWS, Int(Einstellungen.leerzeichenZeigen ? SCWS_VISIBLEALWAYS : SCWS_INVISIBLE))
+        sci(SCI_SETWRAPVISUALFLAGS, Int(Einstellungen.umbruchSymbol ? SC_WRAPVISUALFLAG_END : SC_WRAPVISUALFLAG_NONE))
         sci(SCI_SETVIEWEOL, Einstellungen.zeilenendenZeigen ? 1 : 0)
         sci(SCI_SETINDENTATIONGUIDES, Int(Einstellungen.einrueckungshilfen ? SC_IV_LOOKBOTH : SC_IV_NONE))
 
         zeilennummernStellen = 0
         passeZeilennummernAn()
+        if istKarte {
+            for rand in 0...2 { sci(SCI_SETMARGINWIDTHN, rand, 0) }
+            sci(SCI_SETZOOM, -10)
+            sci(SCI_SETCARETLINEVISIBLE, 0)
+            sci(SCI_SETHSCROLLBAR, 0)
+            sci(SCI_SETVSCROLLBAR, 0)
+            sci(SCI_SETINDENTATIONGUIDES, Int(SC_IV_NONE))
+            sci(SCI_SETVIEWWS, Int(SCWS_INVISIBLE))
+            sci(SCI_SETVIEWEOL, 0)
+        }
         sci(SCI_COLOURISE, 0, -1)
     }
 
@@ -257,6 +286,7 @@ final class Editor: NSObject, ScintillaNotificationProtocol {
 
     /// Der Rand ist so breit wie die höchste Zeilennummer, mindestens drei Stellen.
     private func passeZeilennummernAn() {
+        guard !istKarte else { return }
         guard Einstellungen.zeilennummern else {
             sci(SCI_SETMARGINWIDTHN, 0, 0)
             zeilennummernStellen = -1
@@ -348,6 +378,19 @@ final class Editor: NSObject, ScintillaNotificationProtocol {
         set { sci(SCI_SETFIRSTVISIBLELINE, max(0, newValue)) }
     }
 
+    /// Wie weit waagrecht gescrollt ist (Pixel).
+    var waagrechteLage: Int {
+        get { sci(SCI_GETXOFFSET) }
+        set { sci(SCI_SETXOFFSET, max(0, newValue)) }
+    }
+
+    /// Direkter Zugang für die Befehle des Hauptfensters.
+    @discardableResult
+    func nachricht(_ n: Int32, _ w: Int = 0, _ l: Int = 0) -> Int { sci(n, w, l) }
+
+    @discardableResult
+    func nachricht(_ n: Int32, _ w: Int, text: String) -> Int { sci(n, w, text) }
+
     /// Der jetzige Stand gilt als gesichert.
     func merkeGesichert() {
         sci(SCI_SETSAVEPOINT)
@@ -360,6 +403,66 @@ final class Editor: NSObject, ScintillaNotificationProtocol {
     static let indikatorMarkiert: Int32 = 31
     static let indikatorSmart: Int32 = 29
     static let indikatorSuche: Int32 = 28
+    /// «Alle Treffer hervorheben» mit Stil 1–5 (Mark Style 1–5 in Notepad++).
+    static let indikatorenStil: [Int32] = [25, 24, 23, 22, 21]
+
+    /// Das Wort an der Marke (oder die Auswahl) mit Stil 1–5 hervorheben, überall oder nur hier.
+    func hebeHervor(stil: Int, alle: Bool) {
+        var a = auswahl
+        if a.isEmpty {
+            let m = sci(SCI_GETCURRENTPOS)
+            a = sci(SCI_WORDSTARTPOSITION, m, 1)..<sci(SCI_WORDENDPOSITION, m, 1)
+        }
+        guard !a.isEmpty, let wort = text(a) else { return }
+        let indikator = Self.indikatorenStil[stil - 1]
+        guard alle else { return markiere([a], indikator: indikator) }
+        var o = SuchOptionen()
+        o.text = wort
+        o.grossKlein = true
+        o.ganzesWort = sci(SCI_WORDSTARTPOSITION, a.lowerBound, 1) == a.lowerBound && sci(SCI_WORDENDPOSITION, a.lowerBound, 1) == a.upperBound
+        guard let muster = try? Suchmuster(o) else { return }
+        markiere(muster.alle(in: suchtext).map(\.bereich), indikator: indikator)
+    }
+
+    /// Zur nächsten oder vorherigen Stelle mit Stil (nil: irgendein Stil 1–5).
+    func springeZuMarkierung(stil: Int?, weiter: Bool) {
+        let liste = stil.map { [Self.indikatorenStil[$0 - 1]] } ?? Self.indikatorenStil
+        let marke = sci(SCI_GETCURRENTPOS)
+        var beste: Int?
+        for ind in liste {
+            var stelle = 0
+            let laenge = sci(SCI_GETLENGTH)
+            while stelle < laenge {
+                let ende = sci(SCI_INDICATOREND, Int(ind), stelle)
+                if sci(SCI_INDICATORVALUEAT, Int(ind), stelle) != 0 {
+                    let obergrenze = beste ?? Int.max
+                    let untergrenze = beste ?? -1
+                    if weiter && marke < stelle && stelle < obergrenze { beste = stelle }
+                    if !weiter && stelle < marke && untergrenze < stelle { beste = stelle }
+                }
+                guard ende > stelle else { break }
+                stelle = ende
+            }
+        }
+        guard let ziel = beste else { return NSSound.beep() }
+        waehleAus(ziel..<sci(SCI_INDICATOREND, Int(liste.first { sci(SCI_INDICATORVALUEAT, Int($0), ziel) != 0 } ?? liste[0]), ziel))
+    }
+
+    /// Der Text aller Stellen mit diesen Indikatoren, je Stelle eine Zeile.
+    func markierterText(_ indikatoren: [Int32]) -> String {
+        var stuecke: [(Int, String)] = []
+        for ind in indikatoren {
+            var stelle = 0
+            let laenge = sci(SCI_GETLENGTH)
+            while stelle < laenge {
+                let ende = sci(SCI_INDICATOREND, Int(ind), stelle)
+                if sci(SCI_INDICATORVALUEAT, Int(ind), stelle) != 0, ende > stelle, let t = text(stelle..<ende) { stuecke.append((stelle, t)) }
+                guard ende > stelle else { break }
+                stelle = ende
+            }
+        }
+        return stuecke.sorted { $0.0 < $1.0 }.map(\.1).joined(separator: zeilenende)
+    }
 
     var suchtext: Suchtext { Suchtext(utf8: utf8) }
 
@@ -633,10 +736,10 @@ final class Editor: NSObject, ScintillaNotificationProtocol {
 
     /// Kommentar umschalten nach den Zeichen der Sprache aus langs.model.xml.
     /// Ohne Zeilenkommentar (etwa HTML) umschliesst ein Blockkommentar die Auswahl.
-    func schalteKommentar(block: Bool) {
+    func schalteKommentar(block: Bool, art: Kommentar.Art = .umschalten) {
         if !block, let zeichen = sprache.kommentarZeile {
             let (bereich, zeilen) = zeilenFuerBefehlOhneGanzenText()
-            ersetzeZeilen(bereich, durch: Kommentar.zeilenUmschalten(zeilen, zeichen: zeichen))
+            ersetzeZeilen(bereich, durch: Kommentar.zeilenUmschalten(zeilen, zeichen: zeichen, art: art))
             return
         }
         guard let anfang = sprache.kommentarAnfang, let ende = sprache.kommentarEnde else { return NSSound.beep() }
@@ -891,8 +994,31 @@ final class Editor: NSObject, ScintillaNotificationProtocol {
         schlageVor(schatz, zeichen: z)
     }
 
-    private func schlageVor(_ schatz: Wortschatz, zeichen: Character?) {
-        let ab = Einstellungen.vervollstaendigenAb
+    /// Vorschläge auf Befehl (Bearbeiten → Autovervollständigung), auch ab einem Zeichen.
+    func schlageVorJetzt(nurText: Bool) {
+        let schatz = nurText ? Wortschatz.leer : Sprachdaten.gemeinsam.wortschatz(fuer: sprache)
+        schlageVor(schatz, zeichen: "a", ab: 1)
+    }
+
+    func zeigeAufrufhilfeJetzt() {
+        // Die Klammer vor der Marke suchen und dort die Hilfe zeigen.
+        let marke = sci(SCI_GETCURRENTPOS)
+        var stelle = marke - 1
+        var tiefe = 0
+        while stelle > 0 {
+            let z = sci(SCI_GETCHARAT, stelle) & 0xFF
+            if z == 0x29 { tiefe += 1 } else if z == 0x28 { if tiefe == 0 { break } else { tiefe -= 1 } }
+            if z == 0x0A { stelle = 0; break }
+            stelle -= 1
+        }
+        guard stelle > 0 else { return NSSound.beep() }
+        sci(SCI_GOTOPOS, stelle + 1)
+        zeigeAufrufhilfe(Sprachdaten.gemeinsam.wortschatz(fuer: sprache))
+        sci(SCI_GOTOPOS, marke)
+    }
+
+    private func schlageVor(_ schatz: Wortschatz, zeichen: Character?, ab vorgabe: Int? = nil) {
+        let ab = vorgabe ?? Einstellungen.vervollstaendigenAb
         guard ab > 0, let zeichen, zeichen.isLetter || zeichen.isNumber || zeichen == "_" else { return }
         let marke = sci(SCI_GETCURRENTPOS)
         let anfang = sci(SCI_WORDSTARTPOSITION, marke, 1)
@@ -963,6 +1089,26 @@ final class Editor: NSObject, ScintillaNotificationProtocol {
 
     /// Alle Blöcke ein- oder ausklappen. Scintilla faltet erst, wenn der Text
     /// eingefärbt ist; darum zuerst bis ans Ende färben.
+    /// Den Block an der Marke ein- oder ausklappen.
+    func klappeAktuellen(ein: Bool) {
+        var zeile = sci(SCI_LINEFROMPOSITION, sci(SCI_GETCURRENTPOS))
+        if sci(SCI_GETFOLDLEVEL, zeile) & Int(SC_FOLDLEVELHEADERFLAG) == 0 { zeile = sci(SCI_GETFOLDPARENT, zeile) }
+        guard zeile >= 0 else { return }
+        sci(SCI_FOLDLINE, zeile, Int(ein ? SC_FOLDACTION_CONTRACT : SC_FOLDACTION_EXPAND))
+    }
+
+    /// Alle Blöcke einer Ebene (1 = äusserste) ein- oder ausklappen.
+    func klappeEbene(_ ebene: Int, ein: Bool) {
+        sci(SCI_COLOURISE, 0, -1)
+        let ziel = Int(SC_FOLDLEVELBASE) + ebene - 1
+        for z in 0..<sci(SCI_GETLINECOUNT) {
+            let stufe = sci(SCI_GETFOLDLEVEL, z)
+            if stufe & Int(SC_FOLDLEVELHEADERFLAG) != 0, stufe & Int(SC_FOLDLEVELNUMBERMASK) == ziel {
+                sci(SCI_FOLDLINE, z, Int(ein ? SC_FOLDACTION_CONTRACT : SC_FOLDACTION_EXPAND))
+            }
+        }
+    }
+
     func klappeAlles(ein: Bool) {
         sci(SCI_COLOURISE, 0, -1)
         sci(SCI_FOLDALL, Int(ein ? SC_FOLDACTION_CONTRACT : SC_FOLDACTION_EXPAND))
@@ -1024,4 +1170,14 @@ extension UInt8 {
 
 func scintillaFarbe(_ rgb: Int) -> Int {
     ((rgb & 0xFF) << 16) | (rgb & 0xFF00) | ((rgb >> 16) & 0xFF)
+}
+
+/// ScintillaView mit eigenem Kontextmenü: Die Inhaltsansicht von Scintilla
+/// fragt zuerst ihre ScintillaView (menuForEvent).
+final class KladdeScintillaView: ScintillaView {
+    var kontextmenue: (() -> NSMenu?)?
+
+    override func menu(for event: NSEvent) -> NSMenu? {
+        kontextmenue?() ?? super.menu(for: event)
+    }
 }

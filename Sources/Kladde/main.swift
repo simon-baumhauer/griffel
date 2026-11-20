@@ -4,7 +4,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var zwischensicherung: Timer?
 
     func applicationWillFinishLaunching(_ notification: Notification) {
-        NSApp.mainMenu = Menue.baue(appName: "Kladde")
+        NSApp.mainMenu = Befehlsmenue.baue()
+        // Ein Fenster für alles, wie in Notepad++.
+        let haupt = Hauptfenster.gemeinsam
+        Panels.gemeinsam.anwenden()
+        haupt.ordneDocks()
         // Vor den Dateien, die der Finder zum Öffnen schickt: Die landen als
         // weitere Tabs hinter der Sitzung.
         Sitzung.stelleWiederHer()
@@ -15,7 +19,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         zwischensicherung = Timer.scheduledTimer(withTimeInterval: 10, repeats: true) { _ in
             Sitzung.sichere()
         }
+        Hauptfenster.gemeinsam.showWindow(nil)
         Probe.starteFallsVerlangt()
+    }
+
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        Hauptfenster.gemeinsam.showWindow(nil)
+        return true
     }
 
     /// Auch ohne ungesicherte Dokumente: Dann fragt macOS gar nicht erst nach
@@ -28,17 +38,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Start ohne Datei und ohne Sitzung: ein leeres Dokument, wie «new 1» in Notepad++.
     func applicationShouldOpenUntitledFile(_ sender: NSApplication) -> Bool {
         NSDocumentController.shared.documents.isEmpty
-    }
-
-    // MARK: Menü «Suchen» (gilt auch ohne offenes Dokument)
-
-    @objc func zeigeDateiSuche(_ sender: Any?) {
-        let vorne = NSApp.orderedWindows.lazy.compactMap { $0.windowController?.document as? Dokument }.first
-        DateiSuche.gemeinsam.zeige(ordnerVon: vorne)
-    }
-
-    @objc func zeigeSuchergebnisse(_ sender: Any?) {
-        Suchergebnisse.gemeinsam.showWindow(nil)
     }
 
     /// «Über Kladde» mit Herkunft und Lizenzen.

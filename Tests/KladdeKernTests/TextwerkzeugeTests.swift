@@ -44,6 +44,16 @@ final class TextwerkzeugeTests: XCTestCase {
         XCTAssertEqual(Zeilenwerkzeug.fuehrendeLeerzeichenZuTabs(["         x  y", "  \t z"], breite: 4), ["\t\t x  y", "\t z"])
     }
 
+    func testLeerzeichenZuTabsUeberall() {
+        XCTAssertEqual(Zeilenwerkzeug.leerzeichenZuTabs(["a   b       c d"], breite: 4), ["a\tb\t\tc d"])
+        XCTAssertEqual(Zeilenwerkzeug.leerzeichenZuTabs(["    x"], breite: 4), ["\tx"])
+    }
+
+    func testKommentarSetzenUndEntfernen() {
+        XCTAssertEqual(Kommentar.zeilenUmschalten(["# a", "b"], zeichen: "#", art: .entfernen), ["a", "b"])
+        XCTAssertEqual(Kommentar.zeilenUmschalten(["# a"], zeichen: "#", art: .setzen), ["# # a"])
+    }
+
     // MARK: Schreibung
 
     func testSchreibung() {

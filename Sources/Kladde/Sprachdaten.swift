@@ -28,6 +28,9 @@ struct Stil: Decodable {
     let vorne: Int?
     let hinten: Int?
     let schrift: Int?
+    /// Nur beim Standardstil: Schriftart und -grösse (Punkt unter Windows).
+    let schriftart: String?
+    let groesse: Int?
     /// Die Schlüsselwortklasse, die dieser Stil einfärbt, und die Wörter, die
     /// das Schema selbst noch dazugibt (in Notepad++: «User-defined keywords»).
     let klasse: String?

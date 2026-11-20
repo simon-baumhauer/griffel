@@ -1,21 +1,26 @@
 import AppKit
+import ScintillaBruecke
 
-/// Das Fenster «Suchergebnisse», wie das Ergebnisfeld von Notepad++: oben die
-/// neueste Suche, darunter die älteren zugeklappt; je Suche die Dateien, je
-/// Datei die Zeilen mit Treffern. Doppelklick oder Zeilenschalter springt hin.
-final class Suchergebnisse: NSWindowController, NSOutlineViewDataSource, NSOutlineViewDelegate {
+/// Das Suchergebnis unten im Fenster wie in Notepad++: eine Scintilla-Ansicht,
+/// eingefärbt mit den Stilen «searchResult» des Farbschemas:
+///
+///     Suche "bern" (5 Treffer in 1 Dateien von 1 gesucht) [Normal]
+///       /pfad/staedte.txt (5 Treffer)
+///     	Zeile 2: Bern ist die Bundesstadt.
+///
+/// Neue Suchen oben, ältere zugeklappt. Doppelklick, ↩ oder F4 springen hin.
+final class Suchergebnisse: NSObject, ScintillaNotificationProtocol {
     static let gemeinsam = Suchergebnisse()
 
-    // MARK: Inhalt
-
     final class Suche {
-        let titel: String
-        let ort: String
+        let optionen: SuchOptionen
+        let ort: String?
         var dateien: [Datei] = []
+        var geprueft = 0
         var laeuft = false
         var trefferzahl: Int { dateien.reduce(0) { $0 + $1.trefferzahl } }
-        init(titel: String, ort: String) {
-            self.titel = titel
+        init(optionen: SuchOptionen, ort: String?) {
+            self.optionen = optionen
             self.ort = ort
         }
     }
@@ -24,273 +29,277 @@ final class Suchergebnisse: NSWindowController, NSOutlineViewDataSource, NSOutli
         let name: String
         let url: URL?
         weak var dokument: Dokument?
-        private(set) var zeilen: [Zeile] = []
-        var trefferzahl: Int { zeilen.reduce(0) { $0 + $1.fund.bereiche.count } }
-
+        let zeilen: [Fundzeile]
+        var trefferzahl: Int { zeilen.reduce(0) { $0 + $1.bereiche.count } }
         init(name: String, url: URL?, dokument: Dokument?, funde: [Fundzeile]) {
             self.name = name
             self.url = url
             self.dokument = dokument
-            zeilen = funde.map { Zeile(fund: $0, datei: self) }
-        }
-    }
-
-    final class Zeile {
-        let fund: Fundzeile
-        /// Die Datei hält ihre Zeilen; umgekehrt nur schwach, sonst hielten sie sich gegenseitig.
-        unowned let datei: Datei
-        init(fund: Fundzeile, datei: Datei) {
-            self.fund = fund
-            self.datei = datei
+            zeilen = funde
         }
     }
 
     private(set) var suchen: [Suche] = []
     private static let hoechstensSuchen = 10
+    let ansicht = KladdeScintillaView(frame: NSRect(x: 0, y: 0, width: 600, height: 200))
+    private(set) lazy var leiste: Seitenleiste = {
+        let l = Seitenleiste(titel: Oberflaeche.gemeinsam.texte["find-result-caption"] ?? "Suchergebnisse", inhalt: ansicht)
+        l.schliessen = { [weak self] in self?.verberge() }
+        return l
+    }()
+    /// Zeile im Ergebnis → wohin sie springt.
+    private var ziele: [Int: (Datei, Int)] = [:]
+    private var aktuelleZeile = -1
+    var hatTreffer: Bool { !ziele.isEmpty }
 
-    private let liste = NSOutlineView()
-
-    // MARK: Fenster
-
-    private init() {
-        let fenster = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 760, height: 320),
-            styleMask: [.titled, .closable, .miniaturizable, .resizable, .utilityWindow],
-            backing: .buffered, defer: true)
-        fenster.title = "Suchergebnisse"
-        fenster.setFrameAutosaveName("Suchergebnisse")
-        fenster.isRestorable = false
-        super.init(window: fenster)
-
-        let spalte = NSTableColumn(identifier: .init("ergebnis"))
-        spalte.resizingMask = .autoresizingMask
-        liste.addTableColumn(spalte)
-        liste.outlineTableColumn = spalte
-        liste.headerView = nil
-        liste.rowSizeStyle = .small
-        liste.style = .plain
-        liste.usesAlternatingRowBackgroundColors = false
-        liste.columnAutoresizingStyle = .uniformColumnAutoresizingStyle
-        liste.dataSource = self
-        liste.delegate = self
-        liste.target = self
-        liste.doubleAction = #selector(springe)
-        liste.setAccessibilityLabel("Suchergebnisse")
-
-        let menue = NSMenu()
-        menue.addItem(withTitle: "Alle zuklappen", action: #selector(alleZuklappen), keyEquivalent: "").target = self
-        menue.addItem(withTitle: "Alle aufklappen", action: #selector(alleAufklappen), keyEquivalent: "").target = self
-        menue.addItem(.separator())
-        menue.addItem(withTitle: "Leeren", action: #selector(leeren), keyEquivalent: "").target = self
-        liste.menu = menue
-
-        let rollen = NSScrollView()
-        rollen.documentView = liste
-        rollen.hasVerticalScroller = true
-        rollen.hasHorizontalScroller = true
-        rollen.autohidesScrollers = true
-        fenster.contentView = rollen
+    private override init() {
+        super.init()
+        ansicht.delegate = self
+        sci(SCI_SETCODEPAGE, Int(SC_CP_UTF8))
+        sci(SCI_SETMARGINWIDTHN, 0, 0)
+        sci(SCI_SETMARGINWIDTHN, 1, 0)
+        sci(SCI_SETMARGINTYPEN, 2, Int(SC_MARGIN_SYMBOL))
+        sci(SCI_SETMARGINMASKN, 2, Int(bitPattern: UInt(SC_MASK_FOLDERS)))
+        sci(SCI_SETMARGINWIDTHN, 2, 14)
+        sci(SCI_SETMARGINSENSITIVEN, 2, 1)
+        let marken: [(Int32, Int32)] = [
+            (SC_MARKNUM_FOLDEROPEN, SC_MARK_BOXMINUS), (SC_MARKNUM_FOLDER, SC_MARK_BOXPLUS),
+            (SC_MARKNUM_FOLDERSUB, SC_MARK_VLINE), (SC_MARKNUM_FOLDERTAIL, SC_MARK_LCORNER),
+            (SC_MARKNUM_FOLDEREND, SC_MARK_BOXPLUSCONNECTED), (SC_MARKNUM_FOLDEROPENMID, SC_MARK_BOXMINUSCONNECTED),
+            (SC_MARKNUM_FOLDERMIDTAIL, SC_MARK_TCORNER),
+        ]
+        for (m, f) in marken { sci(SCI_MARKERDEFINE, Int(m), Int(f)) }
+        sci(SCI_SETAUTOMATICFOLD, Int(SC_AUTOMATICFOLD_CLICK))
+        sci(SCI_SETCARETLINEVISIBLE, 1)
+        // Wie in Notepad++: Die Zeile der Marke leuchtet nur, solange das Panel den Fokus hat.
+        sci(SCI_SETCARETLINEVISIBLEALWAYS, 0)
+        ansicht.kontextmenue = { [weak self] in self?.kontextmenue() }
+        darstellungGeaendert()
     }
 
-    @available(*, unavailable)
-    required init?(coder: NSCoder) { fatalError("Suchergebnisse entsteht nur im Code") }
+    @discardableResult
+    private func sci(_ n: Int32, _ w: Int = 0, _ l: Int = 0) -> Int {
+        ansicht.message(UInt32(n), wParam: UInt(bitPattern: w), lParam: l)
+    }
 
     // MARK: Füllen
 
-    /// Neue Suche oben, ältere zugeklappt. Das Fenster kommt nach vorne.
     @discardableResult
-    func beginne(_ titel: String, ort: String) -> Suche {
-        let suche = Suche(titel: titel, ort: ort)
+    func beginne(_ optionen: SuchOptionen, ort: String?) -> Suche {
+        let suche = Suche(optionen: optionen, ort: ort)
         suchen.insert(suche, at: 0)
         if suchen.count > Self.hoechstensSuchen { suchen.removeLast() }
-        liste.reloadData()
-        for alte in suchen.dropFirst() { liste.collapseItem(alte, collapseChildren: true) }
-        liste.expandItem(suche)
-        if window?.isVisible != true { window?.center() }
-        showWindow(nil)
+        zeige()
+        zeichne()
         return suche
     }
 
     func fuegeHinzu(_ datei: Datei, zu suche: Suche) {
         suche.dateien.append(datei)
-        liste.reloadItem(suche, reloadChildren: true)
-        if suche === suchen.first { liste.expandItem(datei) }
+        zeichne()
     }
 
     func beende(_ suche: Suche) {
         suche.laeuft = false
-        liste.reloadItem(suche)
+        zeichne()
     }
 
-    /// «Alle finden» in offenen Dokumenten.
+    /// «Alle in aktiver Datei suchen» und «In offenen Dateien suchen».
     func findeAlle(in dokumente: [Dokument]) -> Suchaktion.Antwort {
         let muster: Suchmuster
         do { muster = try SuchZustand.gemeinsam.muster() } catch {
             return Suchaktion.Antwort(text: (error as? Suchfehler)?.meldung ?? "", fehler: true)
         }
-        let suche = beginne(
-            Self.titel(muster.optionen), ort: dokumente.count == 1 ? "im Dokument" : "in offenen Dateien")
+        let suche = beginne(muster.optionen, ort: nil)
+        suche.geprueft = dokumente.count
         for dokument in dokumente {
             guard let editor = dokument.editor else { continue }
             let text = editor.suchtext
             let treffer = muster.alle(in: text)
             guard !treffer.isEmpty else { continue }
-            let datei = Datei(
-                name: dokument.fileURL?.path ?? dokument.displayName ?? "Ohne Titel",
-                url: dokument.fileURL, dokument: dokument, funde: Fundzeilen.aus(treffer, in: text))
-            fuegeHinzu(datei, zu: suche)
+            suche.dateien.append(Datei(
+                name: dokument.fileURL?.path ?? dokument.tabTitel, url: dokument.fileURL, dokument: dokument,
+                funde: Fundzeilen.aus(treffer, in: text)))
         }
         beende(suche)
         let anzahl = suche.trefferzahl
         return Suchaktion.Antwort(text: anzahl == 0 ? "Nicht gefunden" : "\(anzahl) Treffer gefunden", fehler: anzahl == 0)
     }
 
-    static func titel(_ o: SuchOptionen) -> String {
+    // MARK: Zeichnen
+
+    private enum Stil: Int { case standard = 0, kopf = 1, datei = 2, zeilennummer = 3, treffer = 4 }
+
+    private func kopfzeile(_ s: Suche) -> String {
+        let o = Oberflaeche.gemeinsam
+        let titel = o.texte["find-result-title"] ?? "Suche"
+        let info = o.text("find-result-title-info", "\(s.trefferzahl)", "\(s.dateien.count)", "\(max(s.geprueft, s.dateien.count))")
+        let modus: String
+        switch s.optionen.modus {
+        case .normal: modus = o.texte["find-result-title-info-options-searchmode-normal"] ?? "Normal"
+        case .erweitert: modus = o.texte["find-result-title-info-options-searchmode-extended"] ?? "Erweitert"
+        case .regulaer: modus = o.texte["find-result-title-info-options-searchmode-regexp"] ?? "RegEx"
+        }
         var zusatz: [String] = []
-        if o.modus == .regulaer { zusatz.append("Ausdruck") }
-        if o.modus == .erweitert { zusatz.append("erweitert") }
-        if o.grossKlein { zusatz.append("Gross/klein") }
-        if o.ganzesWort { zusatz.append("ganzes Wort") }
-        return "«\(o.text)»" + (zusatz.isEmpty ? "" : " (\(zusatz.joined(separator: ", ")))")
+        if s.optionen.grossKlein { zusatz.append(o.texte["find-result-title-info-options-case"] ?? "Groß-/Kleinschreibung") }
+        if s.optionen.ganzesWort { zusatz.append(o.texte["find-result-title-info-options-word"] ?? "Wort") }
+        let klammer = modus + (zusatz.isEmpty ? "" : ": " + zusatz.joined(separator: "/"))
+        return "\(titel) \"\(s.optionen.text)\" \(s.laeuft ? "…" : info) [\(klammer)]"
     }
 
-    // MARK: Springen
-
-    @objc private func springe() {
-        guard let zeile = liste.item(atRow: liste.clickedRow >= 0 ? liste.clickedRow : liste.selectedRow) as? Zeile
-        else {
-            if let eintrag = liste.item(atRow: liste.clickedRow) {
-                liste.isItemExpanded(eintrag) ? liste.collapseItem(eintrag) : liste.expandItem(eintrag)
+    /// Baut den ganzen Text neu, färbt ihn selbst ein (kein Lexer) und setzt die Faltstufen.
+    private func zeichne() {
+        let o = Oberflaeche.gemeinsam
+        let praefix = o.texte["find-result-line-prefix"] ?? "Zeile"
+        var text = Data()
+        var stile: [(Int, Int, Stil)] = []
+        var stufen: [Int] = []
+        ziele = [:]
+        func zeile(_ inhalt: String, stufe: Int, kopf: Bool, stil: Stil) -> Int {
+            let start = text.count
+            text.append(contentsOf: Array(inhalt.utf8))
+            text.append(0x0A)
+            stile.append((start, inhalt.utf8.count, stil))
+            stufen.append((Int(SC_FOLDLEVELBASE) + stufe) | (kopf ? Int(SC_FOLDLEVELHEADERFLAG) : 0))
+            return start
+        }
+        for s in suchen {
+            _ = zeile(kopfzeile(s), stufe: 0, kopf: true, stil: .kopf)
+            for d in s.dateien {
+                _ = zeile("  \(d.name) " + o.text("find-result-hits", "\(d.trefferzahl)"), stufe: 1, kopf: true, stil: .datei)
+                for (i, f) in d.zeilen.enumerated() {
+                    let vorne = "\t\(praefix) \(f.nummer): "
+                    let start = zeile(vorne + f.text, stufe: 2, kopf: false, stil: .standard)
+                    stile.append((start + 1, vorne.utf8.count - 1, .zeilennummer))
+                    for h in f.hervorhebungen {
+                        let davor = (f.text as NSString).substring(to: h.location).utf8.count
+                        let laenge = (f.text as NSString).substring(with: h).utf8.count
+                        stile.append((start + vorne.utf8.count + davor, laenge, .treffer))
+                    }
+                    ziele[stufen.count - 1] = (d, i)
+                }
             }
+        }
+        sci(SCI_SETREADONLY, 0)
+        sci(SCI_CLEARALL)
+        text.withUnsafeBytes { b in if let p = b.baseAddress { _ = sci(SCI_ADDTEXT, b.count, Int(bitPattern: p)) } }
+        for (start, laenge, stil) in stile where laenge > 0 {
+            sci(SCI_STARTSTYLING, start)
+            sci(SCI_SETSTYLING, laenge, stil.rawValue)
+        }
+        for (z, stufe) in stufen.enumerated() { sci(SCI_SETFOLDLEVEL, z, stufe) }
+        // Ältere Suchen zugeklappt, wie in Notepad++.
+        var zeileNr = 0
+        for (i, s) in suchen.enumerated() {
+            if i > 0 { sci(SCI_FOLDLINE, zeileNr, Int(SC_FOLDACTION_CONTRACT)) }
+            zeileNr += 1 + s.dateien.reduce(0) { $0 + 1 + $1.zeilen.count }
+        }
+        sci(SCI_SETREADONLY, 1)
+        sci(SCI_GOTOPOS, 0)
+        aktuelleZeile = -1
+    }
+
+    func darstellungGeaendert() {
+        let schema = Sprachdaten.gemeinsam.farbschema(Einstellungen.schemaName(fuer: NSApp.effectiveAppearance))
+        let standard = schema.global["Default Style"]
+        let schrift = standard?.schriftart.flatMap { NSFont(name: $0, size: 12) != nil ? $0 : nil } ?? "Menlo"
+        schrift.withCString { _ = sci(SCI_STYLESETFONT, Int(STYLE_DEFAULT), Int(bitPattern: $0)) }
+        sci(SCI_STYLESETSIZE, Int(STYLE_DEFAULT), Int((Double(standard?.groesse ?? 10) * 4 / 3).rounded()))
+        sci(SCI_STYLESETFORE, Int(STYLE_DEFAULT), scintillaFarbe(standard?.vorne ?? 0))
+        sci(SCI_STYLESETBACK, Int(STYLE_DEFAULT), scintillaFarbe(standard?.hinten ?? 0xFFFFFF))
+        sci(SCI_STYLECLEARALL)
+        for stil in schema.lexer["searchResult"] ?? [] {
+            if let v = stil.vorne { sci(SCI_STYLESETFORE, stil.id, scintillaFarbe(v)) }
+            if let h = stil.hinten { sci(SCI_STYLESETBACK, stil.id, scintillaFarbe(h)) }
+            if let s = stil.schrift { sci(SCI_STYLESETBOLD, stil.id, s & 1) }
+            if stil.id == 1 || stil.id == 2 { sci(SCI_STYLESETEOLFILLED, stil.id, 1) }
+            if stil.id == 6, let h = stil.hinten { sci(SCI_SETCARETLINEBACK, scintillaFarbe(h)) }
+        }
+        ansicht.appearance = NSAppearance(named: Hauptfenster.istDunkel ? .darkAqua : .aqua)
+        leiste.faerbe()
+        zeichne()
+    }
+
+    // MARK: Zeigen und springen
+
+    func zeige() { Hauptfenster.gemeinsam.untererDock.zeige(leiste, an: true) }
+    func verberge() { Hauptfenster.gemeinsam.untererDock.zeige(leiste, an: false) }
+
+    func fokussiere() {
+        zeige()
+        ansicht.window?.makeFirstResponder(ansicht.content())
+    }
+
+    /// F4 / Umschalt+F4: nächster oder vorheriger Treffer.
+    func springe(weiter: Bool) {
+        let zeilen = ziele.keys.sorted()
+        guard !zeilen.isEmpty else { return }
+        let ziel = weiter
+            ? (zeilen.first { $0 > aktuelleZeile } ?? zeilen[0])
+            : (zeilen.last { $0 < aktuelleZeile } ?? zeilen[zeilen.count - 1])
+        oeffne(zeile: ziel)
+    }
+
+    private func oeffne(zeile: Int) {
+        guard let (datei, i) = ziele[zeile] else {
+            sci(SCI_TOGGLEFOLD, zeile)
             return
         }
-        Self.oeffne(zeile.datei, bereich: zeile.fund.bereiche[0])
-    }
-
-    override func keyDown(with ereignis: NSEvent) {
-        if ereignis.keyCode == 36 || ereignis.keyCode == 76 { springe() } else { super.keyDown(with: ereignis) }
-    }
-
-    /// Ins Dokument, wenn es offen ist; sonst die Datei öffnen. Dann auswählen.
-    static func oeffne(_ datei: Datei, bereich: Range<Int>) {
-        func zeige(_ dokument: Dokument) {
-            dokument.showWindows()
-            guard let fenster = dokument.windowControllers.first as? EditorFenster else { return }
-            fenster.editor.waehleAus(bereich)
-            fenster.window?.makeFirstResponder(fenster.editor.ansicht.content())
+        aktuelleZeile = zeile
+        sci(SCI_ENSUREVISIBLE, zeile)
+        sci(SCI_GOTOLINE, zeile)
+        let bereich = datei.zeilen[i].bereiche[0]
+        func zeigeIn(_ d: Dokument) {
+            Hauptfenster.gemeinsam.aktiviere(d)
+            d.editor?.waehleAus(bereich)
+            d.editor?.nachricht(SCI_VERTICALCENTRECARET)
         }
-        if let dokument = datei.dokument ?? datei.url.flatMap({ NSDocumentController.shared.document(for: $0) as? Dokument }) {
-            return zeige(dokument)
+        if let d = datei.dokument ?? datei.url.flatMap({ NSDocumentController.shared.document(for: $0) as? Dokument }) {
+            return zeigeIn(d)
         }
         guard let url = datei.url else { return NSSound.beep() }
-        NSDocumentController.shared.openDocument(withContentsOf: url, display: true) { dokument, _, fehler in
-            if let dokument = dokument as? Dokument {
-                zeige(dokument)
-            } else if let fehler {
-                NSApp.presentError(fehler)
-            }
+        NSDocumentController.shared.openDocument(withContentsOf: url, display: true) { d, _, fehler in
+            if let d = d as? Dokument { zeigeIn(d) } else if let fehler { NSApp.presentError(fehler) }
         }
     }
 
-    // MARK: Menü
+    func notification(_ meldung: UnsafeMutablePointer<SCNotification>!) {
+        if Int32(meldung.pointee.nmhdr.code) == SCN_DOUBLECLICK {
+            oeffne(zeile: sci(SCI_LINEFROMPOSITION, meldung.pointee.position))
+        }
+    }
 
-    @objc private func alleZuklappen() { liste.collapseItem(nil, collapseChildren: true) }
-    @objc private func alleAufklappen() { liste.expandItem(nil, expandChildren: true) }
+    // MARK: Kontextmenü
 
+    private func kontextmenue() -> NSMenu {
+        let m = NSMenu()
+        let liste: [(String, Selector?)] = [
+            ("Alle einklappen", #selector(alleEin)), ("Alle ausklappen", #selector(alleAus)), ("", nil),
+            ("Kopieren", #selector(kopieren)), ("Alles auswählen", #selector(allesWaehlen)), ("", nil),
+            ("Alles löschen", #selector(leeren)),
+        ]
+        for (titel, aktion) in liste {
+            guard let aktion else { m.addItem(.separator()); continue }
+            let e = NSMenuItem(title: titel, action: aktion, keyEquivalent: "")
+            e.target = self
+            m.addItem(e)
+        }
+        return m
+    }
+
+    @objc private func alleEin() { sci(SCI_FOLDALL, Int(SC_FOLDACTION_CONTRACT)) }
+    @objc private func alleAus() { sci(SCI_FOLDALL, Int(SC_FOLDACTION_EXPAND)) }
+    @objc private func kopieren() { sci(SCI_COPY) }
+    @objc private func allesWaehlen() { sci(SCI_SELECTALL) }
     @objc private func leeren() {
-        suchen.removeAll()
-        liste.reloadData()
+        suchen = []
+        zeichne()
     }
 
-    // MARK: NSOutlineViewDataSource
-
-    func outlineView(_ outlineView: NSOutlineView, numberOfChildrenOfItem item: Any?) -> Int {
-        switch item {
-        case nil: return suchen.count
-        case let suche as Suche: return suche.dateien.count
-        case let datei as Datei: return datei.zeilen.count
-        default: return 0
-        }
-    }
-
-    func outlineView(_ outlineView: NSOutlineView, child index: Int, ofItem item: Any?) -> Any {
-        switch item {
-        case let suche as Suche: return suche.dateien[index]
-        case let datei as Datei: return datei.zeilen[index]
-        default: return suchen[index]
-        }
-    }
-
-    func outlineView(_ outlineView: NSOutlineView, isItemExpandable item: Any) -> Bool {
-        !(item is Zeile)
-    }
-
-    // MARK: NSOutlineViewDelegate
-
-    func outlineView(_ outlineView: NSOutlineView, viewFor tableColumn: NSTableColumn?, item: Any) -> NSView? {
-        let zelle = outlineView.makeView(withIdentifier: .init("zelle"), owner: self) as? NSTableCellView ?? {
-            let neu = NSTableCellView()
-            neu.identifier = .init("zelle")
-            let feld = NSTextField(labelWithString: "")
-            feld.lineBreakMode = .byTruncatingMiddle
-            feld.usesSingleLineMode = true
-            feld.cell?.wraps = false
-            feld.maximumNumberOfLines = 1
-            feld.translatesAutoresizingMaskIntoConstraints = false
-            neu.addSubview(feld)
-            neu.textField = feld
-            NSLayoutConstraint.activate([
-                feld.leadingAnchor.constraint(equalTo: neu.leadingAnchor, constant: 2),
-                feld.trailingAnchor.constraint(equalTo: neu.trailingAnchor, constant: -2),
-                feld.centerYAnchor.constraint(equalTo: neu.centerYAnchor),
-            ])
-            return neu
-        }()
-        zelle.textField?.attributedStringValue = text(fuer: item)
-        return zelle
-    }
-
-    private func text(fuer item: Any) -> NSAttributedString {
-        let klein = NSFont.systemFont(ofSize: NSFont.smallSystemFontSize)
-        let fett = NSFont.boldSystemFont(ofSize: NSFont.smallSystemFontSize)
-        switch item {
-        case let suche as Suche:
-            // Wie Notepad++: zuerst was und wie viel, dann wo; ein langer Ort wird gekürzt.
-            let dateien = suche.dateien.count
-            let stand = suche.laeuft
-                ? " – läuft …"
-                : " – \(suche.trefferzahl) Treffer in \(dateien) \(dateien == 1 ? "Datei" : "Dateien")"
-            let absatz = NSMutableParagraphStyle()
-            absatz.lineBreakMode = .byTruncatingMiddle
-            let s = NSMutableAttributedString(
-                string: "Suche nach " + suche.titel + stand, attributes: [.font: fett, .paragraphStyle: absatz])
-            s.append(NSAttributedString(
-                string: "  " + suche.ort,
-                attributes: [.font: klein, .foregroundColor: NSColor.secondaryLabelColor, .paragraphStyle: absatz]))
-            return s
-        case let datei as Datei:
-            let s = NSMutableAttributedString(string: datei.name, attributes: [.font: fett, .foregroundColor: NSColor.labelColor])
-            s.append(NSAttributedString(
-                string: "  (\(datei.trefferzahl))", attributes: [.font: klein, .foregroundColor: NSColor.secondaryLabelColor]))
-            return s
-        case let zeile as Zeile:
-            let schrift = NSFont.monospacedSystemFont(ofSize: 11, weight: .regular)
-            let s = NSMutableAttributedString(
-                string: String(format: "%6d: ", zeile.fund.nummer),
-                attributes: [.font: schrift, .foregroundColor: NSColor.secondaryLabelColor])
-            let inhalt = NSMutableAttributedString(
-                string: zeile.fund.text, attributes: [.font: schrift, .foregroundColor: NSColor.labelColor])
-            for bereich in zeile.fund.hervorhebungen {
-                inhalt.addAttributes(
-                    [
-                        .backgroundColor: NSColor.systemYellow.withAlphaComponent(0.45),
-                        .font: NSFont.monospacedSystemFont(ofSize: 11, weight: .bold),
-                    ], range: bereich)
-            }
-            s.append(inhalt)
-            return s
-        default:
-            return NSAttributedString()
-        }
+    /// Für die Selbstprüfung: der Text des Ergebnisses.
+    var text: String {
+        let laenge = sci(SCI_GETLENGTH)
+        guard laenge > 0, let p = UnsafeRawPointer(bitPattern: sci(SCI_GETCHARACTERPOINTER)) else { return "" }
+        return String(decoding: UnsafeRawBufferPointer(start: p, count: laenge), as: UTF8.self)
     }
 }

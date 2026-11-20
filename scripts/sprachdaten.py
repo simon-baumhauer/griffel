@@ -90,6 +90,10 @@ def stil(knoten):
                              ("schrift", zahl(knoten.get("fontStyle")))]:
         if wert is not None:
             s[schluessel] = wert
+    if knoten.get("fontName"):
+        s["schriftart"] = knoten.get("fontName")
+    if zahl(knoten.get("fontSize")):
+        s["groesse"] = zahl(knoten.get("fontSize"))
     klasse = knoten.get("keywordClass")
     if klasse in KLASSEN:
         s["klasse"] = klasse
@@ -134,6 +138,10 @@ def hauptprogramm():
         for datei in dateien:
             shutil.copyfile(datei, ziel / unter / datei.name)
         anzahl[unter] = len(dateien)
+    # Die Oberfläche von Notepad++ (Menüs, Dialoge, Texte), siehe scripts/oberflaeche.py.
+    import subprocess
+    subprocess.run([sys.executable, "-I", str(Path(__file__).with_name("oberflaeche.py")), str(npp),
+                    str(ziel / "oberflaeche.json")], check=True)
     print(f"{len(liste)} Sprachen, {len(namen)} Farbschemata, "
           f"{anzahl['funktionsliste']} Funktionslisten, {anzahl['autovervollstaendigung']} Wortschätze")
 
