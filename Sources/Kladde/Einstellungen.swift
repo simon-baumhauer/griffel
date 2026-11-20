@@ -81,6 +81,12 @@ enum Einstellungen {
         set { ablage.set(newValue, forKey: "VervollstaendigenAb"); melde() }
     }
 
+    /// Die Funktionsliste rechts im Fenster.
+    static var funktionslisteSichtbar: Bool {
+        get { ablage.bool(forKey: "FunktionslisteSichtbar") }
+        set { ablage.set(newValue, forKey: "FunktionslisteSichtbar"); melde() }
+    }
+
     /// Beim Beenden die Tabs merken und beim Start wieder öffnen.
     static var sitzungMerken: Bool {
         get { ablage.object(forKey: "SitzungMerken") as? Bool ?? true }

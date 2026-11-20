@@ -115,7 +115,9 @@ final class Statusleiste: NSView {
         aktualisiere()
     }
 
-    @objc private func zeigeSprachen() { zeige(Menue.sprachEintraege(), bei: sprache) }
+    @objc private func zeigeSprachen() {
+        zeige(Menue.sprachEintraege() + [.separator(), BenutzersprachenMenue.gemeinsam.menue()], bei: sprache)
+    }
     @objc private func zeigeZeilenenden() { zeige(Menue.zeilenendeEintraege(), bei: zeilenende) }
     @objc private func zeigeKodierungen() { zeige(Menue.kodierungsEintraege(), bei: kodierung) }
 

@@ -35,6 +35,7 @@ public struct SuchOptionen: Equatable, Codable {
 
 public struct Suchfehler: LocalizedError, Equatable {
     public let meldung: String
+    public init(meldung: String) { self.meldung = meldung }
     public var errorDescription: String? { meldung }
 }
 

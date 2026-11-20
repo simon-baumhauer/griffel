@@ -7,6 +7,8 @@ Liest
   PowerEditor/src/langs.model.xml                             Endungen, Kommentare, Schlüsselwörter
   PowerEditor/src/stylers.model.xml                           Farbschema «Standard»
   PowerEditor/installer/themes/*.xml                          die übrigen Farbschemata
+  PowerEditor/installer/functionList/*.xml                     Funktionsliste (unverändert kopiert)
+  PowerEditor/installer/APIs/*.xml                             Autovervollständigung (unverändert kopiert)
 und schreibt
   <ziel>/sprachen.json
   <ziel>/farbschemata/<Name>.json   (eine Datei je Schema, die App lädt sie erst bei Bedarf)
@@ -17,6 +19,7 @@ Die Daten bleiben, wie Notepad++ sie führt; nur das Format ändert sich.
 
 import json
 import re
+import shutil
 import sys
 import xml.etree.ElementTree as ET
 from pathlib import Path
@@ -122,7 +125,17 @@ def hauptprogramm():
         (ziel / "farbschemata" / f"{name}.json").write_text(json.dumps(schema, ensure_ascii=False), encoding="utf-8")
         namen.append(name)
     (ziel / "farbschemata.json").write_text(json.dumps(namen, ensure_ascii=False), encoding="utf-8")
-    print(f"{len(liste)} Sprachen, {len(namen)} Farbschemata")
+
+    # Funktionsliste und Autovervollständigung: Die App liest das XML selbst.
+    anzahl = {}
+    for quelle, unter in [("functionList", "funktionsliste"), ("APIs", "autovervollstaendigung")]:
+        (ziel / unter).mkdir(exist_ok=True)
+        dateien = [d for d in (npp / "PowerEditor/installer" / quelle).glob("*.xml") if d.name != "overrideMap.xml"]
+        for datei in dateien:
+            shutil.copyfile(datei, ziel / unter / datei.name)
+        anzahl[unter] = len(dateien)
+    print(f"{len(liste)} Sprachen, {len(namen)} Farbschemata, "
+          f"{anzahl['funktionsliste']} Funktionslisten, {anzahl['autovervollstaendigung']} Wortschätze")
 
 
 hauptprogramm()

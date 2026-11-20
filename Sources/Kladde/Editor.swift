@@ -137,6 +137,8 @@ final class Editor: NSObject, ScintillaNotificationProtocol {
         let lexer = neu.istNormalerText ? nil : CreateLexer(regel.lexer)
         ansicht.setReferenceProperty(SCI_SETILEXER, parameter: 0, value: lexer)
         for (name, wert) in regel.eigenschaften { eigenschaft(name, wert) }
+        if let udl = Sprachdaten.gemeinsam.benutzersprache(fuer: neu) { richteBenutzerspracheEin(udl) }
+        textwoerter = nil
         uebernimmSprache(neu)
         spracheGewechselt?(neu)
     }
@@ -179,6 +181,12 @@ final class Editor: NSObject, ScintillaNotificationProtocol {
         for stil in global.values where (33...37).contains(stil.id) { setze(stil) }
         for abschnitt in regel.farben {
             for stil in schema.lexer[abschnitt] ?? [] { setze(stil) }
+        }
+        // Benutzerdefinierte Sprachen bringen ihre Farben selbst mit.
+        for stil in Sprachdaten.gemeinsam.benutzersprache(fuer: sprache)?.stile ?? [] {
+            if let v = stil.vorne { sci(SCI_STYLESETFORE, stil.id, scintillaFarbe(v)) }
+            if let h = stil.hinten { sci(SCI_STYLESETBACK, stil.id, scintillaFarbe(h)) }
+            setzeSchrift(stil.id, stil.schrift)
         }
 
         func farbe(_ name: String, _ teil: KeyPath<Stil, Int?>) -> Int? {
@@ -824,6 +832,124 @@ final class Editor: NSObject, ScintillaNotificationProtocol {
         zu.withCString { _ = sci(SCI_INSERTTEXT, marke, Int(bitPattern: $0)) }
     }
 
+    // MARK: Benutzerdefinierte Sprache
+
+    /// Wie setUserLexer in Notepad++: Schalter und einige Listen als
+    /// Eigenschaften, die übrigen Listen der Reihe nach mit SCI_SETKEYWORDS,
+    /// dazu die Verschachtelung der Stile.
+    private func richteBenutzerspracheEin(_ udl: Benutzersprache) {
+        eigenschaft("fold", "1")
+        eigenschaft("userDefine.isCaseIgnored", udl.ohneGrossKlein ? "1" : "0")
+        eigenschaft("userDefine.allowFoldOfComments", udl.kommentareFalten ? "1" : "0")
+        eigenschaft("userDefine.foldCompact", udl.kompaktFalten ? "1" : "0")
+        for (i, praefix) in udl.praefix.enumerated() { eigenschaft("userDefine.prefixKeywords\(i + 1)", praefix ? "1" : "0") }
+        var liste = 0
+        for (i, woerter) in udl.listen.enumerated() {
+            if let name = Benutzersprache.eigenschaften[i] {
+                eigenschaft(name, woerter)
+            } else {
+                sci(SCI_SETKEYWORDS, liste, Benutzersprache.aufbereitet(woerter))
+                liste += 1
+            }
+        }
+        eigenschaft("userDefine.forcePureLC", "\(udl.reinesLC)")
+        eigenschaft("userDefine.decimalSeparator", "\(udl.dezimaltrenner)")
+        // Der Lexer merkt sich Zustand je Sprache und Text; beides braucht eine feste Zahl.
+        eigenschaft("userDefine.udlName", "\(UInt(bitPattern: udl.name.hashValue))")
+        eigenschaft("userDefine.currentBufferID", "\(UInt(bitPattern: ObjectIdentifier(self).hashValue))")
+        for stil in udl.stile { eigenschaft(String(format: "userDefine.nesting.%02d", stil.id), "\(stil.verschachtelung)") }
+    }
+
+    // MARK: Vorschläge und Aufrufhilfe
+
+    /// Zählt jede Änderung am Text (für die Funktionsliste).
+    private(set) var aenderungszahl = 0
+
+    /// Die Wörter des Textes, neu gezählt nach jeder Änderung (bei grossen Texten keine).
+    private var textwoerter: Set<String>?
+    /// Wo die Klammer der Aufrufhilfe steht, solange sie offen ist.
+    private var aufrufStelle: Int?
+    private var aufrufName = ""
+
+    /// Nach jedem getippten Zeichen: Aufrufhilfe bei «(», «,» und «)», sonst Vorschläge.
+    private func hilf(nach zeichen: Int32) {
+        let schatz = Sprachdaten.gemeinsam.wortschatz(fuer: sprache)
+        let z = UnicodeScalar(UInt32(max(0, zeichen))).map(Character.init)
+        if let z, z == schatz.aufrufAnfang {
+            zeigeAufrufhilfe(schatz)
+            return
+        }
+        if let z, z == schatz.aufrufEnde {
+            sci(SCI_CALLTIPCANCEL)
+            aufrufStelle = nil
+            return
+        }
+        if let z, z == schatz.trenner, aufrufStelle != nil {
+            aktualisiereAufrufhilfe(schatz)
+            return
+        }
+        schlageVor(schatz, zeichen: z)
+    }
+
+    private func schlageVor(_ schatz: Wortschatz, zeichen: Character?) {
+        let ab = Einstellungen.vervollstaendigenAb
+        guard ab > 0, let zeichen, zeichen.isLetter || zeichen.isNumber || zeichen == "_" else { return }
+        let marke = sci(SCI_GETCURRENTPOS)
+        let anfang = sci(SCI_WORDSTARTPOSITION, marke, 1)
+        guard marke > anfang, let wort = text(anfang..<marke), wort.count >= ab else { return }
+        if textwoerter == nil, sci(SCI_GETLENGTH) < 2_000_000 {
+            textwoerter = Wortschatz.woerter(in: String(decoding: utf8, as: UTF8.self))
+        }
+        let liste = schatz.vorschlaege(fuer: wort, ausText: textwoerter ?? [])
+        guard !liste.isEmpty else {
+            if sci(SCI_AUTOCACTIVE) != 0 { sci(SCI_AUTOCCANCEL) }
+            return
+        }
+        sci(SCI_AUTOCSETSEPARATOR, 10)
+        sci(SCI_AUTOCSETIGNORECASE, 1)
+        sci(SCI_AUTOCSETORDER, Int(SC_ORDER_PERFORMSORT))
+        sci(SCI_AUTOCSETMAXHEIGHT, 10)
+        sci(SCI_AUTOCSHOW, marke - anfang, liste.joined(separator: "\n"))
+    }
+
+    private func zeigeAufrufhilfe(_ schatz: Wortschatz) {
+        let klammer = sci(SCI_GETCURRENTPOS) - 1
+        guard klammer > 0 else { return }
+        let anfang = sci(SCI_WORDSTARTPOSITION, klammer, 1)
+        guard anfang < klammer, let name = text(anfang..<klammer), let hilfe = schatz.aufrufhilfe(fuer: name, aktiv: 0) else {
+            return
+        }
+        aufrufStelle = klammer
+        aufrufName = name
+        sci(SCI_CALLTIPSHOW, anfang, hilfe.text)
+        if let h = hilfe.hervorheben { sci(SCI_CALLTIPSETHLT, h.lowerBound, h.upperBound) }
+    }
+
+    /// Der wievielte Parameter: Trenner seit der Klammer, ohne die in inneren Klammern.
+    private func aktualisiereAufrufhilfe(_ schatz: Wortschatz) {
+        guard let stelle = aufrufStelle, sci(SCI_CALLTIPACTIVE) != 0,
+            let zwischen = text((stelle + 1)..<sci(SCI_GETCURRENTPOS))
+        else { aufrufStelle = nil; return }
+        var tiefe = 0
+        var nummer = 0
+        for z in zwischen {
+            if z == schatz.aufrufAnfang { tiefe += 1 } else if z == schatz.aufrufEnde { tiefe -= 1 } else if z == schatz.trenner, tiefe == 0 { nummer += 1 }
+        }
+        guard let hilfe = schatz.aufrufhilfe(fuer: aufrufName, aktiv: nummer) else { return }
+        if let h = hilfe.hervorheben {
+            sci(SCI_CALLTIPSETHLT, h.lowerBound, h.upperBound)
+        } else {
+            sci(SCI_CALLTIPSETHLT, 0, 0)
+        }
+    }
+
+    /// Für die Selbstprüfung: der Stil an einer Stelle.
+    func stil(bei stelle: Int) -> Int { sci(SCI_GETSTYLEAT, stelle) }
+
+    /// Für die Selbstprüfung: was die Liste der Vorschläge gerade zeigt.
+    var vorschlagOffen: Bool { sci(SCI_AUTOCACTIVE) != 0 }
+    var aufrufhilfeOffen: Bool { sci(SCI_CALLTIPACTIVE) != 0 }
+
     // MARK: Darstellung je Fenster
 
     var umbruch: Bool {
@@ -857,6 +983,10 @@ final class Editor: NSObject, ScintillaNotificationProtocol {
             geaendert?(false)
         case SCN_MODIFIED:
             if meldung.pointee.linesAdded != 0 { passeZeilennummernAn() }
+            if meldung.pointee.modificationType & Int32(SC_MOD_INSERTTEXT | SC_MOD_DELETETEXT) != 0 {
+                textwoerter = nil
+                aenderungszahl += 1
+            }
             meldeZustand()
         case SCN_UPDATEUI:
             markiereKlammern()
@@ -874,6 +1004,7 @@ final class Editor: NSObject, ScintillaNotificationProtocol {
             let zeichen = meldung.pointee.ch
             if (zeichen == 0x0A || zeichen == 0x0D), Einstellungen.autoEinzug { ruecke() }
             if Einstellungen.klammernSchliessen { schliesseKlammer(zeichen) }
+            hilf(nach: zeichen)
         case SCN_ZOOM:
             zeilennummernStellen = 0
             passeZeilennummernAn()

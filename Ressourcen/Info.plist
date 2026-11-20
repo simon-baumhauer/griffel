@@ -10,6 +10,8 @@
 	<string>Kladde</string>
 	<key>CFBundleIdentifier</key>
 	<string>io.github.simon-baumhauer.kladde</string>
+	<key>CFBundleIconFile</key>
+	<string>Kladde</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>

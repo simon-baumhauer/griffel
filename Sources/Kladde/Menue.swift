@@ -123,10 +123,11 @@ enum Menue {
                 mitTag("Übereinander", #selector(EditorFenster.geteilteAnsicht(_:)), 1),
                 mitTag("Nebeneinander", #selector(EditorFenster.geteilteAnsicht(_:)), 2),
             ]),
+            eintrag("Funktionsliste", #selector(EditorFenster.funktionslisteUmschalten(_:)), "l", [.command, .option]),
         ]))
 
         leiste.addItem(untermenue("Kodierung", kodierungsEintraege() + [.separator(), ueberschrift("Zeilenende")] + zeilenendeEintraege()))
-        leiste.addItem(untermenue("Sprache", sprachEintraege()))
+        leiste.addItem(untermenue("Sprache", sprachEintraege() + [.separator(), BenutzersprachenMenue.gemeinsam.menue()]))
         leiste.addItem(MakroMenue.gemeinsam.menue())
 
         let fenster = untermenue("Fenster", [

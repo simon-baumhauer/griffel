@@ -1,3 +1,5 @@
+<img src="Ressourcen/Kladde.png" width="128" alt="Icon von Kladde: ein grünes Heft mit farbigen Codezeilen">
+
 # Kladde
 
 Ein Texteditor für den Mac nach dem Vorbild von Notepad++. «Kladde» ist der Arbeitsname.
@@ -25,13 +27,13 @@ Das Ergebnis ist `build/Kladde.app`. Nur den Kern neu bauen: `./scripts/extern-b
 | `Sources/KladdeKern/` | Ohne Oberfläche und mit Tests: Zeichensätze, Suchen und Ersetzen, Suche im Ordner |
 | `Tests/KladdeKernTests/` | Tests dazu (`swift test`) |
 | `Sources/ScintillaBruecke/` | Macht ScintillaView und Lexilla für Swift sichtbar |
-| `extern/LexillaLuecken.cxx` | Platzhalter für den Lexer «benutzerdefinierte Sprache», der noch `<windows.h>` braucht |
+| `extern/mac/windows.h` | Ersatz für `<windows.h>`, damit der UDL-Lexer von Notepad++ auf dem Mac baut |
 | `scripts/` | Bau des Kerns und des App-Bündels |
 | `Ressourcen/Info.plist` | Angaben des Bündels |
 
 ## Stand
 
-Etappe 5 von 7.
+Etappe 6 von 7.
 
 - **Etappe 1:** Fenster, Tippen, Öffnen, Sichern, Tabs, Zeilennummern.
 - **Etappe 2:** Menü «Kodierung» wie in Notepad++: Zeichensatz (UTF-8, UTF-8 mit BOM, UTF-16 LE/BE,
@@ -66,6 +68,12 @@ Etappe 5 von 7.
   Sprache, Länge, Position, Auswahl, Zeilenende, Zeichensatz und EINF/ÜB, die drei ersten zum
   Umstellen per Klick. Einstellungen (⌘,): Schrift, Grösse, Farbschema, Tabbreite, Anzeige,
   Auto-Einzug, Klammern schliessen, Smart Highlighting, Sitzung.
+- **Etappe 6:** Funktionsliste rechts im Fenster (⌥⌘L) aus den Regeln von Notepad++
+  (`installer/functionList`), 44 von 47 Sprachen. Vorschläge beim Tippen aus den Wörtern des Textes
+  und den API-Listen von Notepad++ (`installer/APIs`, 34 Sprachen), dazu die Aufrufhilfe mit
+  Parametern. Benutzerdefinierte Sprachen (UDL ab Version 2.0) aus Notepad++: «Sprache →
+  Benutzerdefiniert → Importieren …», mit dem Lexer von Notepad++. Icon. Befehl `kladde` fürs
+  Terminal (in den Einstellungen).
 
 Die Regex ist die von ICU (`NSRegularExpression`), nicht die Boost-Regex von Notepad++. Für das
 Übliche gleich; benannte Gruppen im Ersetzungstext (`$+{name}`) und `\<`, `\>` kennt sie nicht.
@@ -75,8 +83,12 @@ Sprachen und Farbschemata entstehen beim Bauen aus `langs.model.xml`, `stylers.m
 Scintilla einrichtet, steht in `Sources/Kladde/Sprachregeln.swift`. Die Schrift kommt aus den
 Einstellungen (Vorgabe Menlo 13); die Schriften der Farbschemata (meist Courier New) gelten nicht.
 
-Noch nicht dabei: benutzerdefinierte Sprachen (UDL). Der Lexer dafür braucht `<windows.h>` und
-einen eigenen Dialog; bis dahin steht in `extern/LexillaLuecken.cxx` ein leerer Platzhalter.
+Die Funktionslisten von Notepad++ sind für die Regex von Boost geschrieben.
+`Sources/KladdeKern/Funktionsliste.swift` übersetzt sie für ICU: `\K`, `(?&NAME)`, `(?R)`,
+`(?(DEFINE)…)`, `\k'NAME'`, Gruppennamen mit `_`, lose `{`, `}`, `]` und die Kommentare im Modus
+`(?x)`. Bedingungen `(?(…)…|…)` kann ICU nicht; für SQL, VHDL und NppExec gibt es darum keine
+Funktionsliste. Benutzerdefinierte Sprachen lassen sich importieren, aber (noch) nicht in einem
+Dialog bearbeiten; die XML-Dateien liegen unter `~/Library/Application Support/Kladde/userDefineLangs/`.
 
 Die Sitzung liegt unter `~/Library/Application Support/Kladde/Sitzung/`. Die Dateien der Dokumente
 fasst sie nie an; erst «Sichern» schreibt sie.
@@ -87,7 +99,8 @@ fasst sie nie an; erst «Sichern» schreibt sie.
 swift test
 ```
 
-prüft Zeichensätze, Suchen, Ersetzen, die Suche im Ordner und die Textwerkzeuge (40 Tests).
+prüft Zeichensätze, Suchen, Ersetzen, die Suche im Ordner, die Textwerkzeuge, Funktionsliste,
+Autovervollständigung und benutzerdefinierte Sprachen (49 Tests; manche lesen die Dateien von Notepad++).
 
 Die App kann sich selbst prüfen und schreibt einen Bericht samt Bildern der Fenster
 (`Sources/Kladde/Probe.swift`). Im Hintergrund starten, damit sie keine Tasten abfängt:

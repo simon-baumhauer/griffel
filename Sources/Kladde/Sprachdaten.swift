@@ -16,6 +16,9 @@ struct Sprache: Decodable {
     let woerter: [String: String]
 
     var istNormalerText: Bool { name == "normal" }
+    /// Eine benutzerdefinierte Sprache (UDL); ihr Name beginnt mit «udl:».
+    var istBenutzersprache: Bool { name.hasPrefix(Sprache.udl) }
+    static let udl = "udl:"
 }
 
 /// Ein Stil aus einem Farbschema von Notepad++. Farben als 0xRRGGBB;
@@ -79,9 +82,89 @@ final class Sprachdaten {
         normal = nachName["normal"] ?? Sprache(
             name: "normal", kurz: "Normal text", lang: "Normal text file", lexer: "null", imMenue: true,
             endungen: [], kommentarZeile: nil, kommentarAnfang: nil, kommentarEnde: nil, woerter: [:])
+        ladeBenutzersprachen()
     }
 
-    func sprache(_ name: String) -> Sprache? { nachName[name] }
+    func sprache(_ name: String) -> Sprache? {
+        if name.hasPrefix(Sprache.udl) { return benutzersprachen[name].map(\.sprache) }
+        return nachName[name]
+    }
+
+    // MARK: Funktionsliste und Autovervollständigung
+
+    private var funktionslisten: [String: Funktionsliste?] = [:]
+    private var wortschaetze: [String: Wortschatz] = [:]
+
+    /// Die Funktionsliste von Notepad++ für eine Sprache, falls es eine gibt und ICU sie versteht.
+    func funktionsliste(fuer sprache: Sprache) -> Funktionsliste? {
+        if let bekannt = funktionslisten[sprache.name] { return bekannt }
+        let liste = ordner.flatMap { o in
+            try? Funktionsliste.lade(o.appendingPathComponent("funktionsliste/\(sprache.name).xml"))
+        }
+        funktionslisten[sprache.name] = liste
+        return liste
+    }
+
+    /// Die Wörter und Funktionen der Sprache aus installer/APIs (für «javascript.js» gilt javascript.xml).
+    func wortschatz(fuer sprache: Sprache) -> Wortschatz {
+        if let bekannt = wortschaetze[sprache.name] { return bekannt }
+        var schatz = Wortschatz.leer
+        if let ordner {
+            for name in [sprache.name, String(sprache.name.split(separator: ".").first ?? "")] where !name.isEmpty {
+                if let geladen = try? Wortschatz.lade(ordner.appendingPathComponent("autovervollstaendigung/\(name).xml")) {
+                    schatz = geladen
+                    break
+                }
+            }
+        }
+        wortschaetze[sprache.name] = schatz
+        return schatz
+    }
+
+    // MARK: Benutzerdefinierte Sprachen
+
+    /// Wo die UDL-Dateien liegen, wie «userDefineLangs» bei Notepad++.
+    /// Mit «-KladdeUDL /pfad» beim Start liegt er woanders (für Prüfläufe).
+    static var benutzersprachenOrdner: URL {
+        if let pfad = UserDefaults.standard.string(forKey: "KladdeUDL") { return URL(fileURLWithPath: pfad, isDirectory: true) }
+        return FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("Kladde/userDefineLangs", isDirectory: true)
+    }
+
+    struct Eigene {
+        let udl: Benutzersprache
+        let sprache: Sprache
+    }
+
+    /// Nach Name («udl:…»).
+    private(set) var benutzersprachen: [String: Eigene] = [:]
+    /// Dateien, die sich nicht laden liessen, mit Grund.
+    private(set) var benutzerspracheFehler: [String] = []
+
+    func benutzersprache(fuer sprache: Sprache) -> Benutzersprache? { benutzersprachen[sprache.name]?.udl }
+
+    /// Liest alle XML-Dateien im Ordner neu ein.
+    func ladeBenutzersprachen() {
+        benutzersprachen = [:]
+        benutzerspracheFehler = []
+        let dateien = (try? FileManager.default.contentsOfDirectory(
+            at: Self.benutzersprachenOrdner, includingPropertiesForKeys: nil)) ?? []
+        for datei in dateien.sorted(by: { $0.lastPathComponent < $1.lastPathComponent }) where datei.pathExtension.lowercased() == "xml" {
+            do {
+                for udl in try Benutzersprache.lade(datei) {
+                    let zeichen = udl.kommentarzeichen
+                    let sprache = Sprache(
+                        name: Sprache.udl + udl.name, kurz: udl.name, lang: "Benutzerdefiniert: \(udl.name)",
+                        lexer: "user", imMenue: false, endungen: udl.endungen,
+                        kommentarZeile: zeichen.zeile, kommentarAnfang: zeichen.anfang, kommentarEnde: zeichen.ende,
+                        woerter: [:])
+                    benutzersprachen[sprache.name] = Eigene(udl: udl, sprache: sprache)
+                }
+            } catch {
+                benutzerspracheFehler.append("\(datei.lastPathComponent): \(error.localizedDescription)")
+            }
+        }
+    }
 
     func farbschema(_ name: String) -> Farbschema {
         if let schema = geladen[name] { return schema }
@@ -106,6 +189,13 @@ final class Sprachdaten {
     /// Die Sprache einer Datei: zuerst nach dem Namen, dann nach der Endung,
     /// sonst nach der ersten Zeile (#! oder <?xml). Ohne Treffer: normaler Text.
     func erkenne(url: URL?, anfang: Data) -> Sprache {
+        // Wie Notepad++: Endungen benutzerdefinierter Sprachen gehen vor.
+        if let endung = url?.pathExtension.lowercased(), !endung.isEmpty,
+            let eigene = benutzersprachen.values.sorted(by: { $0.sprache.name < $1.sprache.name })
+                .first(where: { $0.udl.endungen.contains { $0.lowercased() == endung } })
+        {
+            return eigene.sprache
+        }
         if let url {
             let name = url.lastPathComponent.lowercased()
             if let treffer = Self.dateinamen[name].flatMap(sprache) { return treffer }

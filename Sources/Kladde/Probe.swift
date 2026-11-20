@@ -56,6 +56,9 @@ enum Probe {
         }
 
         switch aktion {
+        case "etappe6":
+            etappe6(ordner: ordner, bericht: { bericht.append($0) }, fertig: schliesse)
+            return
         case "etappe5":
             etappe5(ordner: ordner, bericht: { bericht.append($0) }, fertig: schliesse)
             return
@@ -314,6 +317,71 @@ enum Probe {
             arbeit {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { fuehreAus(index + 1) }
             }
+        }
+        fuehreAus(0)
+    }
+
+    /// Funktionsliste, Vorschläge, Aufrufhilfe und benutzerdefinierte Sprache. Erwartet
+    /// als erstes Dokument eine Python-Datei und als zweites eine Datei der Test-UDL.
+    private static func etappe6(ordner: URL, bericht: @escaping (String) -> Void, fertig: @escaping () -> Void) {
+        let fensterliste = NSApp.orderedWindows.compactMap { $0.windowController as? EditorFenster }
+        let dokumente = Dokumente.inTabfolge()
+        guard let python = dokumente.first(where: { $0.editor?.sprache.name == "python" }),
+            let pf = python.windowControllers.first as? EditorFenster, let pfenster = pf.window
+        else {
+            bericht("etappe6: keine Python-Datei offen (\(fensterliste.count) Fenster)")
+            return fertig()
+        }
+        let e = pf.editor
+        let vorher = Einstellungen.funktionslisteSichtbar
+        var schritte: [() -> Void] = []
+        schritte.append {
+            pfenster.makeKeyAndOrderFront(nil)
+            Einstellungen.funktionslisteSichtbar = true
+        }
+        schritte.append {}
+        schritte.append {}
+        schritte.append {
+            bericht("funktionsliste: \(pf.funktionslisteNamen)")
+            bild(von: pfenster, nach: ordner.appendingPathComponent("funktionsliste.png"))
+        }
+        schritte.append {
+            e.waehleAus(e.laenge..<e.laenge)
+            e.ansicht.insertText("\nx = isinst")
+        }
+        schritte.append {
+            bericht("vorschläge nach «isinst»: offen \(e.vorschlagOffen)")
+            bild(von: pfenster, nach: ordner.appendingPathComponent("vorschlaege.png"))
+            _ = e.ansicht.message(UInt32(SCI_AUTOCCANCEL), wParam: 0, lParam: 0)
+            e.ansicht.insertText("\nlen(")
+        }
+        schritte.append {
+            bericht("aufrufhilfe nach «len(»: offen \(e.aufrufhilfeOffen)")
+            bild(von: pfenster, nach: ordner.appendingPathComponent("aufrufhilfe.png"))
+            _ = e.ansicht.message(UInt32(SCI_CALLTIPCANCEL), wParam: 0, lParam: 0)
+        }
+        schritte.append {
+            let eigene = dokumente.first { $0.editor?.sprache.istBenutzersprache ?? false }
+            guard let eigene, let ef = eigene.windowControllers.first as? EditorFenster, let ed = eigene.editor else {
+                bericht("udl: kein Dokument erkannt; geladen \(Sprachdaten.gemeinsam.benutzersprachen.keys.sorted()), fehler \(Sprachdaten.gemeinsam.benutzerspracheFehler)")
+                return
+            }
+            ef.window?.makeKeyAndOrderFront(nil)
+            let text = String(decoding: ed.utf8, as: UTF8.self)
+            let stelle = text.utf8.count - (text.components(separatedBy: "WENN").last?.utf8.count ?? 0) - 4
+            bericht("udl: sprache \(ed.sprache.name), stil von «WENN» \(ed.stil(bei: max(0, stelle))) (Keywords1 = 4)")
+        }
+        schritte.append {
+            if let w = NSApp.orderedWindows.first(where: { ($0.windowController as? EditorFenster)?.editor.sprache.istBenutzersprache ?? false }) {
+                bild(von: w, nach: ordner.appendingPathComponent("udl.png"))
+            }
+            Einstellungen.funktionslisteSichtbar = vorher
+            for d in dokumente { d.updateChangeCount(.changeCleared) }
+        }
+        func fuehreAus(_ i: Int) {
+            guard i < schritte.count else { return fertig() }
+            schritte[i]()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { fuehreAus(i + 1) }
         }
         fuehreAus(0)
     }

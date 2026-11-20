@@ -49,13 +49,12 @@ fi
   echo "Scintilla.h: Die C++-Stelle sieht anders aus als erwartet." >&2; exit 1; }
 
 echo "→ Lexilla"
-# LexUser.cxx (benutzerdefinierte Sprachen) braucht <windows.h> und bleibt draussen;
-# extern/LexillaLuecken.cxx liefert dafür einen leeren Platzhalter.
+# LexUser.cxx (benutzerdefinierte Sprachen) bindet <windows.h> nur für _itoa ein;
+# extern/mac/windows.h liefert das.
 quellen=(
   $NPP/lexilla/src/Lexilla.cxx
   $NPP/lexilla/lexlib/*.cxx
-  ${(@)$(print -l $NPP/lexilla/lexers/*.cxx):#*/LexUser.cxx}
-  $WURZEL/extern/LexillaLuecken.cxx
+  $NPP/lexilla/lexers/*.cxx
 )
 print -l $quellen | xargs -P 10 -I{} zsh -c '
   o='$OBJ'/${1:t:r}.o
@@ -63,7 +62,7 @@ print -l $quellen | xargs -P 10 -I{} zsh -c '
   clang++ -c -std=c++17 -O2 -fPIC -arch arm64 -mmacosx-version-min='$MIN' \
     -fvisibility=hidden -w \
     -I'$NPP'/lexilla/include -I'$NPP'/lexilla/lexlib -I'$NPP'/scintilla/include \
-    -I'$NPP'/lexilla/access \
+    -I'$NPP'/lexilla/access -I'$WURZEL'/extern/mac \
     $1 -o $o' _ {}
 
 clang++ -dynamiclib -arch arm64 -mmacosx-version-min=$MIN \

@@ -1,4 +1,5 @@
 import AppKit
+import ScintillaBruecke
 
 /// Das Fenster eines Dokuments. Mehrere Dokumente landen als Tabs im selben
 /// Fenster (tabbingMode), die Tableiste zeichnet macOS. Oben sitzt bei Bedarf
@@ -18,6 +19,12 @@ final class EditorFenster: NSWindowController, NSMenuItemValidation {
     private let inhalt = NSView()
     private var teilung: NSSplitView?
     private var erscheinung: NSKeyValueObservation?
+    /// Editorbereich links, Funktionsliste rechts (wenn eingeschaltet).
+    private let rumpf = NSSplitView()
+    private let funktionsliste = FunktionslistenAnsicht()
+    private var einstellungen: NSObjectProtocol?
+    private var ausgewertet = -1
+    private var auswertungGeplant = false
 
     var aktiv: Editor { zuletztAktiv ?? editor }
 
@@ -39,17 +46,20 @@ final class EditorFenster: NSWindowController, NSMenuItemValidation {
             return (self.aktiv, self.document as? Dokument)
         }
 
-        let stapel = NSStackView(views: [suchleiste, inhalt, statusleiste])
+        rumpf.isVertical = true
+        rumpf.dividerStyle = .thin
+        rumpf.addArrangedSubview(inhalt)
+        let stapel = NSStackView(views: [suchleiste, rumpf, statusleiste])
         stapel.orientation = .vertical
         stapel.spacing = 0
         stapel.alignment = .leading
         stapel.distribution = .fill
-        for ansicht in [suchleiste!, inhalt, statusleiste] as [NSView] {
+        for ansicht in [suchleiste!, rumpf, statusleiste] as [NSView] {
             ansicht.translatesAutoresizingMaskIntoConstraints = false
             ansicht.widthAnchor.constraint(equalTo: stapel.widthAnchor).isActive = true
         }
-        inhalt.setContentHuggingPriority(.init(1), for: .vertical)
-        inhalt.setContentCompressionResistancePriority(.init(1), for: .vertical)
+        rumpf.setContentHuggingPriority(.init(1), for: .vertical)
+        rumpf.setContentCompressionResistancePriority(.init(1), for: .vertical)
         suchleiste.isHidden = true
         fenster.contentView = stapel
         fuelle(mit: editor.ansicht)
@@ -69,7 +79,21 @@ final class EditorFenster: NSWindowController, NSMenuItemValidation {
                 self?.zweiter?.wendeDarstellungAn()
             }
         }
-        editor.spracheGewechselt = { [weak self] sprache in self?.zweiter?.uebernimmSprache(sprache) }
+        editor.spracheGewechselt = { [weak self] sprache in
+            self?.zweiter?.uebernimmSprache(sprache)
+            self?.ausgewertet = -1
+            self?.planeFunktionsliste()
+        }
+        funktionsliste.springe = { [weak self] stelle in
+            guard let self else { return }
+            self.aktiv.waehleAus(stelle..<stelle)
+            self.aktiv.ansicht.message(UInt32(SCI_VERTICALCENTRECARET), wParam: 0, lParam: 0)
+            self.window?.makeFirstResponder(self.aktiv.ansicht.content())
+        }
+        einstellungen = NotificationCenter.default.addObserver(
+            forName: Einstellungen.geaendert, object: nil, queue: .main
+        ) { [weak self] _ in self?.zeigeFunktionsliste(Einstellungen.funktionslisteSichtbar) }
+        zeigeFunktionsliste(Einstellungen.funktionslisteSichtbar)
         DispatchQueue.main.async { [weak self] in self?.statusleiste.aktualisiere() }
     }
 
@@ -77,8 +101,51 @@ final class EditorFenster: NSWindowController, NSMenuItemValidation {
     required init?(coder: NSCoder) { fatalError("EditorFenster entsteht nur im Code") }
 
     /// Statusleiste und Fokus hören auf diesen Editor.
+    deinit {
+        if let einstellungen { NotificationCenter.default.removeObserver(einstellungen) }
+    }
+
+    // MARK: Funktionsliste
+
+    private func zeigeFunktionsliste(_ an: Bool) {
+        let sichtbar = funktionsliste.superview != nil
+        guard an != sichtbar else { return }
+        if an {
+            rumpf.addArrangedSubview(funktionsliste)
+            rumpf.setHoldingPriority(.init(260), forSubviewAt: 1)
+            rumpf.layoutSubtreeIfNeeded()
+            rumpf.setPosition(max(240, rumpf.bounds.width - 240), ofDividerAt: 0)
+            ausgewertet = -1
+            planeFunktionsliste()
+        } else {
+            funktionsliste.removeFromSuperview()
+        }
+    }
+
+    /// Wertet höchstens einmal je halbe Sekunde aus, und nur nach Änderungen.
+    private func planeFunktionsliste() {
+        guard funktionsliste.superview != nil, !auswertungGeplant, ausgewertet != editor.aenderungszahl else { return }
+        auswertungGeplant = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+            guard let self else { return }
+            self.auswertungGeplant = false
+            self.ausgewertet = self.editor.aenderungszahl
+            self.funktionsliste.aktualisiere(text: self.editor.suchtext, sprache: self.editor.sprache)
+        }
+    }
+
+    /// Für die Selbstprüfung.
+    var funktionslisteNamen: [String] { funktionsliste.namen }
+
+    @objc func funktionslisteUmschalten(_ sender: Any?) {
+        Einstellungen.funktionslisteSichtbar.toggle()
+    }
+
     private func melde(_ e: Editor) {
-        e.zustandGeaendert = { [weak self] in self?.statusleiste.aktualisiere() }
+        e.zustandGeaendert = { [weak self] in
+            self?.statusleiste.aktualisiere()
+            self?.planeFunktionsliste()
+        }
         e.fokussiert = { [weak self, weak e] in
             self?.zuletztAktiv = e
             self?.statusleiste.aktualisiere()
@@ -379,6 +446,8 @@ final class EditorFenster: NSWindowController, NSMenuItemValidation {
             menuItem.state = editor.umbruch ? .on : .off
         case #selector(ueberschreiben(_:)):
             menuItem.state = aktiv.stand.ueberschreiben ? .on : .off
+        case #selector(funktionslisteUmschalten(_:)):
+            menuItem.state = Einstellungen.funktionslisteSichtbar ? .on : .off
         case #selector(geteilteAnsicht(_:)):
             menuItem.state = menuItem.tag == geteilt ? .on : .off
         case #selector(weitersuchen(_:)), #selector(rueckwaertsSuchen(_:)):

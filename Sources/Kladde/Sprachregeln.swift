@@ -32,6 +32,10 @@ struct Sprachregel {
             paare.map { (liste: $0.0, sprache: name, klasse: $0.1) }
         }
 
+        if sprache.istBenutzersprache {
+            // Lexer «user»; Listen, Eigenschaften und Farben kommen aus der UDL (Editor.richteBenutzerspracheEin).
+            return Sprachregel(lexer: "user", farben: [], listen: [], eigenschaften: [])
+        }
         switch name {
         case "c", "cpp", "java", "rc", "cs", "actionscript", "swift", "go":
             var listen = eigene([(0, "instre1"), (1, "type1"), (3, "instre2")])
