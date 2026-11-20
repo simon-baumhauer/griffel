@@ -8,20 +8,47 @@ final class Editor: NSObject, ScintillaNotificationProtocol {
 
     /// Der Text weicht vom gesicherten Stand ab (true) oder stimmt wieder (false).
     var geaendert: ((Bool) -> Void)?
+    /// Auswahl, Text oder Modus haben sich geändert (für die Statusleiste).
+    var zustandGeaendert: (() -> Void)?
+    /// Diese Ansicht hat den Fokus bekommen (für die geteilte Ansicht).
+    var fokussiert: (() -> Void)?
+    /// Die Sprache ist eine andere (für die zweite Ansicht desselben Dokuments).
+    var spracheGewechselt: ((Sprache) -> Void)?
+    /// Ein Schritt der Makro-Aufnahme: Nachricht, wParam, lParam.
+    var makroSchritt: ((UInt32, UInt, Int) -> Void)?
 
     private(set) var sprache = Sprachdaten.gemeinsam.normal
     private var zeilennummernStellen = 0
     private var klammerMarkiert = false
     private var beobachter: NSObjectProtocol?
 
-    /// Rand 0 Zeilennummern, Rand 1 Lesezeichen (später), Rand 2 Faltung.
+    /// Rand 0 Zeilennummern, Rand 1 Lesezeichen, Rand 2 Faltung.
+    private static let randLesezeichen = 1
     private static let randFaltung: UInt = 2
+    /// Marke für Lesezeichen, wie MARK_BOOKMARK in Notepad++.
+    static let markeLesezeichen = 20
 
     override init() {
         super.init()
         ansicht.delegate = self
         richteEin()
         setzeSprache(sprache)
+        beobachte()
+    }
+
+    /// Eine zweite Ansicht auf denselben Text (geteilte Ansicht): Text,
+    /// Widerrufen, Lexer, Lesezeichen und Markierungen teilen beide.
+    init(teiltMit erster: Editor) {
+        super.init()
+        ansicht.delegate = self
+        richteEin()
+        let dokument = erster.sci(SCI_GETDOCPOINTER)
+        sci(SCI_SETDOCPOINTER, 0, dokument)
+        uebernimmSprache(erster.sprache)
+        beobachte()
+    }
+
+    private func beobachte() {
         beobachter = NotificationCenter.default.addObserver(
             forName: Einstellungen.geaendert, object: nil, queue: .main
         ) { [weak self] _ in self?.wendeDarstellungAn() }
@@ -55,7 +82,8 @@ final class Editor: NSObject, ScintillaNotificationProtocol {
 
     private func richteEin() {
         sci(SCI_SETCODEPAGE, Int(SC_CP_UTF8))
-        sci(SCI_SETTABWIDTH, 4)
+        sci(SCI_SETTABWIDTH, Einstellungen.tabbreite)
+        sci(SCI_SETUSETABS, Einstellungen.tabsAlsLeerzeichen ? 0 : 1)
         sci(SCI_SETSCROLLWIDTH, 1)
         sci(SCI_SETSCROLLWIDTHTRACKING, 1)
 
@@ -66,7 +94,16 @@ final class Editor: NSObject, ScintillaNotificationProtocol {
         sci(SCI_SETVIRTUALSPACEOPTIONS, Int(SCVS_RECTANGULARSELECTION))
 
         sci(SCI_SETMARGINTYPEN, 0, Int(SC_MARGIN_NUMBER))
-        sci(SCI_SETMARGINWIDTHN, 1, 0)
+
+        // Lesezeichen: blaues Lesezeichen im Rand 1, Klick setzt und entfernt es.
+        let lesezeichen = Self.randLesezeichen
+        sci(SCI_SETMARGINTYPEN, lesezeichen, Int(SC_MARGIN_SYMBOL))
+        sci(SCI_SETMARGINMASKN, lesezeichen, 1 << Self.markeLesezeichen)
+        sci(SCI_SETMARGINWIDTHN, lesezeichen, 14)
+        sci(SCI_SETMARGINSENSITIVEN, lesezeichen, 1)
+        sci(SCI_MARKERDEFINE, Self.markeLesezeichen, Int(SC_MARK_BOOKMARK))
+        sci(SCI_MARKERSETFORE, Self.markeLesezeichen, scintillaFarbe(0x1E5AA8))
+        sci(SCI_MARKERSETBACK, Self.markeLesezeichen, scintillaFarbe(0x3C8CE6))
         sci(SCI_SETCARETLINEVISIBLE, 1)
         sci(SCI_SETCARETLINEVISIBLEALWAYS, 1)
 
@@ -93,16 +130,23 @@ final class Editor: NSObject, ScintillaNotificationProtocol {
 
     /// Neuer Lexer, seine Wörter und Eigenschaften, dann Farben und Faltung.
     func setzeSprache(_ neu: Sprache) {
-        sprache = neu
         let regel = Sprachregel.fuer(neu)
         // Scintilla übernimmt den Lexer und gibt den alten frei. Unbekannt oder
-        // «null»: ohne Lexer, also ohne Farben und Faltung.
+        // «null»: ohne Lexer, also ohne Farben und Faltung. Der Lexer gehört zum
+        // Text, nicht zur Ansicht: Eine zweite Ansicht übernimmt ihn.
         let lexer = neu.istNormalerText ? nil : CreateLexer(regel.lexer)
         ansicht.setReferenceProperty(SCI_SETILEXER, parameter: 0, value: lexer)
         for (name, wert) in regel.eigenschaften { eigenschaft(name, wert) }
-        let rand = Int(Self.randFaltung)
-        sci(SCI_SETMARGINWIDTHN, rand, lexer == nil ? 0 : 16)
+        uebernimmSprache(neu)
+        spracheGewechselt?(neu)
+    }
+
+    /// Farben und Faltungsrand für eine Sprache, deren Lexer der Text schon hat.
+    func uebernimmSprache(_ neu: Sprache) {
+        sprache = neu
+        sci(SCI_SETMARGINWIDTHN, Int(Self.randFaltung), neu.istNormalerText ? 0 : 16)
         wendeDarstellungAn()
+        zustandGeaendert?()
     }
 
     // MARK: Darstellung
@@ -123,9 +167,9 @@ final class Editor: NSObject, ScintillaNotificationProtocol {
         ansicht.appearance = NSAppearance(named: helligkeit < 128 ? .darkAqua : .aqua)
 
         // Erst der Standardstil, dann erben alle anderen von ihm. Die Schrift
-        // aus dem Schema (meist Courier New 10) gilt nicht; auf dem Mac Menlo 13.
-        sci(SCI_STYLESETFONT, Int(STYLE_DEFAULT), "Menlo")
-        sci(SCI_STYLESETSIZE, Int(STYLE_DEFAULT), 13)
+        // aus dem Schema (meist Courier New 10) gilt nicht; sie kommt aus den Einstellungen.
+        sci(SCI_STYLESETFONT, Int(STYLE_DEFAULT), Einstellungen.schriftName)
+        sci(SCI_STYLESETSIZE, Int(STYLE_DEFAULT), Einstellungen.schriftGroesse)
         sci(SCI_STYLESETFORE, Int(STYLE_DEFAULT), scintillaFarbe(global["Default Style"]?.vorne ?? 0x000000))
         sci(SCI_STYLESETBACK, Int(STYLE_DEFAULT), scintillaFarbe(global["Default Style"]?.hinten ?? 0xFFFFFF))
         if let standard = global["Default Style"] { setzeSchrift(Int(STYLE_DEFAULT), standard.schrift) }
@@ -146,6 +190,10 @@ final class Editor: NSObject, ScintillaNotificationProtocol {
         if let f = farbe("Caret colour", \.vorne) { sci(SCI_SETCARETFORE, f) }
         if let f = farbe("Multi-edit carets color", \.vorne) { sci(SCI_SETADDITIONALCARETFORE, f) }
         if let f = farbe("White space symbol", \.vorne) { sci(SCI_SETWHITESPACEFORE, 1, f) }
+        if let f = farbe("Bookmark margin", \.hinten) { sci(SCI_SETMARGINBACKN, Self.randLesezeichen, f) }
+        sci(SCI_SETMARGINTYPEN, Self.randLesezeichen, Int(SC_MARGIN_COLOUR))
+        sci(SCI_SETTABWIDTH, Einstellungen.tabbreite)
+        sci(SCI_SETUSETABS, Einstellungen.tabsAlsLeerzeichen ? 0 : 1)
 
         // Faltung: Rand, Linien und Kästchen. Notepad++ vertauscht Vorder- und
         // Hintergrund von «Fold» (getFoldColor), darum hier ebenso.
@@ -201,6 +249,11 @@ final class Editor: NSObject, ScintillaNotificationProtocol {
 
     /// Der Rand ist so breit wie die höchste Zeilennummer, mindestens drei Stellen.
     private func passeZeilennummernAn() {
+        guard Einstellungen.zeilennummern else {
+            sci(SCI_SETMARGINWIDTHN, 0, 0)
+            zeilennummernStellen = -1
+            return
+        }
         let stellen = max(3, String(sci(SCI_GETLINECOUNT)).count)
         guard stellen != zeilennummernStellen else { return }
         zeilennummernStellen = stellen
@@ -366,7 +419,7 @@ final class Editor: NSObject, ScintillaNotificationProtocol {
     /// Gross-/Kleinschreibung).
     private func hebeAuswahlHervor() {
         loescheMarkierungen(Self.indikatorSmart)
-        guard sci(SCI_GETSELECTIONS) == 1 else { return }
+        guard Einstellungen.smartHighlighting, sci(SCI_GETSELECTIONS) == 1 else { return }
         let bereich = auswahl
         guard !bereich.isEmpty, bereich.count < 200,
             sci(SCI_LINEFROMPOSITION, bereich.lowerBound) == sci(SCI_LINEFROMPOSITION, bereich.upperBound),
@@ -432,6 +485,345 @@ final class Editor: NSObject, ScintillaNotificationProtocol {
         }
     }
 
+    // MARK: Zustand
+
+    private var zustandAngemeldet = false
+
+    /// Höchstens einmal je Durchlauf der Ereignisschleife, auch bei vielen Änderungen.
+    private func meldeZustand() {
+        guard zustandGeaendert != nil, !zustandAngemeldet else { return }
+        zustandAngemeldet = true
+        DispatchQueue.main.async { [weak self] in
+            self?.meldeZustandJetzt()
+        }
+    }
+
+    private func meldeZustandJetzt() {
+        zustandAngemeldet = false
+        zustandGeaendert?()
+    }
+
+    /// Zahlen für die Statusleiste.
+    struct Stand {
+        var laenge: Int
+        var zeilen: Int
+        var zeile: Int
+        var spalte: Int
+        var ausgewaehlteZeichen: Int
+        var ausgewaehlteZeilen: Int
+        var auswahlen: Int
+        var ueberschreiben: Bool
+    }
+
+    var stand: Stand {
+        let marke = sci(SCI_GETCURRENTPOS)
+        var zeichen = 0
+        var zeilen = 0
+        let anzahl = sci(SCI_GETSELECTIONS)
+        for i in 0..<anzahl {
+            let von = sci(SCI_GETSELECTIONNSTART, i)
+            let bis = sci(SCI_GETSELECTIONNEND, i)
+            guard bis > von else { continue }
+            zeichen += sci(SCI_COUNTCHARACTERS, von, bis)
+            zeilen += sci(SCI_LINEFROMPOSITION, bis) - sci(SCI_LINEFROMPOSITION, von) + 1
+        }
+        return Stand(
+            laenge: sci(SCI_COUNTCHARACTERS, 0, sci(SCI_GETLENGTH)), zeilen: sci(SCI_GETLINECOUNT),
+            zeile: sci(SCI_LINEFROMPOSITION, marke) + 1, spalte: sci(SCI_GETCOLUMN, marke) + 1,
+            ausgewaehlteZeichen: zeichen, ausgewaehlteZeilen: zeilen, auswahlen: anzahl,
+            ueberschreiben: sci(SCI_GETOVERTYPE) != 0)
+    }
+
+    func schalteUeberschreiben() {
+        sci(SCI_EDITTOGGLEOVERTYPE)
+        zustandGeaendert?()
+    }
+
+    // MARK: Zeilen
+
+    /// Das Zeilenende, das neue Zeilen bekommen.
+    var zeilenende: String {
+        switch Int32(sci(SCI_GETEOLMODE)) {
+        case SC_EOL_CRLF: return "\r\n"
+        case SC_EOL_CR: return "\r"
+        default: return "\n"
+        }
+    }
+
+    /// Die Zeilen, auf die ein Zeilenbefehl wirkt: die der Auswahl (endet sie
+    /// am Anfang einer Zeile, zählt diese nicht mit), ohne Auswahl über mehrere
+    /// Zeilen der ganze Text. Ein Zeilenende ganz am Schluss bleibt draussen.
+    func zeilenFuerBefehl() -> (bereich: Range<Int>, zeilen: [String]) {
+        let a = auswahl
+        let ersteZeile = sci(SCI_LINEFROMPOSITION, a.lowerBound)
+        var letzteZeile = sci(SCI_LINEFROMPOSITION, a.upperBound)
+        if letzteZeile > ersteZeile, sci(SCI_POSITIONFROMLINE, letzteZeile) == a.upperBound { letzteZeile -= 1 }
+        var bereich: Range<Int>
+        if letzteZeile > ersteZeile {
+            bereich = sci(SCI_POSITIONFROMLINE, ersteZeile)..<sci(SCI_GETLINEENDPOSITION, letzteZeile)
+        } else {
+            let letzte = sci(SCI_GETLINECOUNT) - 1
+            var ende = sci(SCI_GETLENGTH)
+            if letzte > 0, sci(SCI_POSITIONFROMLINE, letzte) == ende { ende = sci(SCI_GETLINEENDPOSITION, letzte - 1) }
+            bereich = 0..<ende
+        }
+        let text = self.text(bereich) ?? ""
+        return (bereich, text.split(omittingEmptySubsequences: false, whereSeparator: \.isNewline).map(String.init))
+    }
+
+    /// Ersetzt den Bereich durch die Zeilen (mit dem Zeilenende des Textes) und wählt sie aus.
+    func ersetzeZeilen(_ bereich: Range<Int>, durch zeilen: [String]) {
+        let neu = zeilen.joined(separator: zeilenende)
+        guard text(bereich) != neu else { return }
+        ersetze([(bereich, neu)])
+        sci(SCI_SETSEL, bereich.lowerBound, bereich.lowerBound + neu.utf8.count)
+    }
+
+    /// Ersetzt die Auswahl (ohne Auswahl: das Wort an der Marke) durch eine Umwandlung.
+    func wandleAuswahl(_ umwandlung: (String) -> String) {
+        var a = auswahl
+        if a.isEmpty {
+            let marke = sci(SCI_GETCURRENTPOS)
+            a = sci(SCI_WORDSTARTPOSITION, marke, 1)..<sci(SCI_WORDENDPOSITION, marke, 1)
+        }
+        guard !a.isEmpty, let alt = text(a) else { return }
+        let neu = umwandlung(alt)
+        guard neu != alt else { return }
+        ersetze([(a, neu)])
+        sci(SCI_SETSEL, a.lowerBound, a.lowerBound + neu.utf8.count)
+    }
+
+    func dupliziere() { sci(auswahl.isEmpty ? SCI_LINEDUPLICATE : SCI_SELECTIONDUPLICATE) }
+    func zeilenHoch() { sci(SCI_MOVESELECTEDLINESUP) }
+    func zeilenRunter() { sci(SCI_MOVESELECTEDLINESDOWN) }
+
+    /// Löscht alle Zeilen, die die Auswahl berührt, samt Zeilenende.
+    func loescheZeilen() {
+        let a = auswahl
+        let erste = sci(SCI_LINEFROMPOSITION, a.lowerBound)
+        var letzte = sci(SCI_LINEFROMPOSITION, a.upperBound)
+        if letzte > erste, sci(SCI_POSITIONFROMLINE, letzte) == a.upperBound { letzte -= 1 }
+        let von = sci(SCI_POSITIONFROMLINE, erste)
+        var bis = sci(SCI_POSITIONFROMLINE, letzte + 1)
+        if letzte + 1 >= sci(SCI_GETLINECOUNT) { bis = sci(SCI_GETLENGTH) }
+        var anfang = von
+        // Letzte Zeile ohne Zeilenende: das Ende der Zeile davor mitnehmen.
+        if letzte + 1 >= sci(SCI_GETLINECOUNT), erste > 0 { anfang = sci(SCI_GETLINEENDPOSITION, erste - 1) }
+        ersetze([(anfang..<bis, "")])
+    }
+
+    func verbindeZeilen() {
+        let a = auswahl
+        let erste = sci(SCI_LINEFROMPOSITION, a.lowerBound)
+        var letzte = sci(SCI_LINEFROMPOSITION, a.upperBound)
+        if letzte == erste { letzte = min(erste + 1, sci(SCI_GETLINECOUNT) - 1) }
+        sci(SCI_SETTARGETRANGE, sci(SCI_POSITIONFROMLINE, erste), sci(SCI_GETLINEENDPOSITION, letzte))
+        sci(SCI_BEGINUNDOACTION)
+        sci(SCI_LINESJOIN)
+        sci(SCI_ENDUNDOACTION)
+    }
+
+    /// Kommentar umschalten nach den Zeichen der Sprache aus langs.model.xml.
+    /// Ohne Zeilenkommentar (etwa HTML) umschliesst ein Blockkommentar die Auswahl.
+    func schalteKommentar(block: Bool) {
+        if !block, let zeichen = sprache.kommentarZeile {
+            let (bereich, zeilen) = zeilenFuerBefehlOhneGanzenText()
+            ersetzeZeilen(bereich, durch: Kommentar.zeilenUmschalten(zeilen, zeichen: zeichen))
+            return
+        }
+        guard let anfang = sprache.kommentarAnfang, let ende = sprache.kommentarEnde else { return NSSound.beep() }
+        if auswahl.isEmpty {
+            let zeile = sci(SCI_LINEFROMPOSITION, sci(SCI_GETCURRENTPOS))
+            sci(SCI_SETSEL, sci(SCI_POSITIONFROMLINE, zeile), sci(SCI_GETLINEENDPOSITION, zeile))
+        }
+        wandleAuswahl { Kommentar.blockUmschalten($0, anfang: anfang, ende: ende) }
+    }
+
+    /// Wie zeilenFuerBefehl, aber ohne Auswahl nur die Zeile der Marke.
+    private func zeilenFuerBefehlOhneGanzenText() -> (bereich: Range<Int>, zeilen: [String]) {
+        let a = auswahl
+        let erste = sci(SCI_LINEFROMPOSITION, a.lowerBound)
+        var letzte = sci(SCI_LINEFROMPOSITION, a.upperBound)
+        if letzte > erste, sci(SCI_POSITIONFROMLINE, letzte) == a.upperBound { letzte -= 1 }
+        let bereich = sci(SCI_POSITIONFROMLINE, erste)..<sci(SCI_GETLINEENDPOSITION, letzte)
+        let text = self.text(bereich) ?? ""
+        return (bereich, text.split(omittingEmptySubsequences: false, whereSeparator: \.isNewline).map(String.init))
+    }
+
+    // MARK: Spalteneditor
+
+    /// Fügt je Zeile einen Text ein, in derselben Spalte. Mit Rechteck- oder
+    /// Mehrfachauswahl in deren Zeilen, sonst von der Zeile der Marke bis zum
+    /// Ende (wie «Column Editor» in Notepad++). Kurze Zeilen werden mit
+    /// Leerzeichen aufgefüllt. Antwort: wie viele Zeilen.
+    func fuegeInSpalteEin(_ texte: (Int) -> [String]) -> Int {
+        let modus = Int32(sci(SCI_GETSELECTIONMODE))
+        let erste: Int
+        let letzte: Int
+        let spalte: Int
+        if modus == SC_SEL_RECTANGLE || modus == SC_SEL_THIN {
+            let anker = sci(SCI_GETRECTANGULARSELECTIONANCHOR)
+            let marke = sci(SCI_GETRECTANGULARSELECTIONCARET)
+            let a = sci(SCI_LINEFROMPOSITION, anker)
+            let m = sci(SCI_LINEFROMPOSITION, marke)
+            erste = min(a, m)
+            letzte = max(a, m)
+            spalte = min(
+                sci(SCI_GETCOLUMN, anker) + sci(SCI_GETRECTANGULARSELECTIONANCHORVIRTUALSPACE),
+                sci(SCI_GETCOLUMN, marke) + sci(SCI_GETRECTANGULARSELECTIONCARETVIRTUALSPACE))
+        } else if sci(SCI_GETSELECTIONS) > 1 {
+            let zeilen = (0..<sci(SCI_GETSELECTIONS)).map { sci(SCI_LINEFROMPOSITION, sci(SCI_GETSELECTIONNCARET, $0)) }
+            erste = zeilen.min() ?? 0
+            letzte = zeilen.max() ?? 0
+            spalte = sci(SCI_GETCOLUMN, sci(SCI_GETSELECTIONNCARET, sci(SCI_GETMAINSELECTION)))
+        } else {
+            let marke = sci(SCI_GETCURRENTPOS)
+            erste = sci(SCI_LINEFROMPOSITION, marke)
+            letzte = sci(SCI_GETLINECOUNT) - 1
+            spalte = sci(SCI_GETCOLUMN, marke)
+        }
+        let liste = texte(letzte - erste + 1)
+        sci(SCI_BEGINUNDOACTION)
+        for zeile in stride(from: letzte, through: erste, by: -1) {
+            let stelle = sci(SCI_FINDCOLUMN, zeile, spalte)
+            let fehlt = spalte - sci(SCI_GETCOLUMN, stelle)
+            let einfuegen = String(repeating: " ", count: max(0, fehlt)) + liste[zeile - erste]
+            einfuegen.withCString { _ = sci(SCI_INSERTTEXT, stelle, Int(bitPattern: $0)) }
+        }
+        sci(SCI_ENDUNDOACTION)
+        sci(SCI_SETEMPTYSELECTION, sci(SCI_FINDCOLUMN, erste, spalte))
+        return letzte - erste + 1
+    }
+
+    // MARK: Lesezeichen
+
+    func schalteLesezeichen(zeile: Int? = nil) {
+        let z = zeile ?? sci(SCI_LINEFROMPOSITION, sci(SCI_GETCURRENTPOS))
+        if sci(SCI_MARKERGET, z) & (1 << Self.markeLesezeichen) != 0 {
+            sci(SCI_MARKERDELETE, z, Self.markeLesezeichen)
+        } else {
+            sci(SCI_MARKERADD, z, Self.markeLesezeichen)
+        }
+    }
+
+    /// Zum nächsten oder vorherigen Lesezeichen, am Ende rundherum.
+    func springeZuLesezeichen(rueckwaerts: Bool) {
+        let maske = 1 << Self.markeLesezeichen
+        let zeile = sci(SCI_LINEFROMPOSITION, sci(SCI_GETCURRENTPOS))
+        var ziel = rueckwaerts ? sci(SCI_MARKERPREVIOUS, zeile - 1, maske) : sci(SCI_MARKERNEXT, zeile + 1, maske)
+        if ziel < 0 {
+            ziel = rueckwaerts ? sci(SCI_MARKERPREVIOUS, sci(SCI_GETLINECOUNT), maske) : sci(SCI_MARKERNEXT, 0, maske)
+        }
+        guard ziel >= 0 else { return NSSound.beep() }
+        geheZuZeile(ziel + 1)
+    }
+
+    /// Die Zeilen mit Lesezeichen, ab 0.
+    var lesezeichen: [Int] {
+        get {
+            var zeilen: [Int] = []
+            var z = sci(SCI_MARKERNEXT, 0, 1 << Self.markeLesezeichen)
+            while z >= 0 {
+                zeilen.append(z)
+                z = sci(SCI_MARKERNEXT, z + 1, 1 << Self.markeLesezeichen)
+            }
+            return zeilen
+        }
+        set {
+            sci(SCI_MARKERDELETEALL, Self.markeLesezeichen)
+            for z in newValue where z < sci(SCI_GETLINECOUNT) { sci(SCI_MARKERADD, z, Self.markeLesezeichen) }
+        }
+    }
+
+    func setzeLesezeichen(fuer bereiche: [Range<Int>]) {
+        for bereich in bereiche { sci(SCI_MARKERADD, sci(SCI_LINEFROMPOSITION, bereich.lowerBound), Self.markeLesezeichen) }
+    }
+
+    /// Lesezeichen umkehren: wo eines ist, keins mehr, und umgekehrt.
+    func kehreLesezeichenUm() {
+        let alt = Set(lesezeichen)
+        lesezeichen = (0..<sci(SCI_GETLINECOUNT)).filter { !alt.contains($0) }
+    }
+
+    /// Der Text der Zeilen mit Lesezeichen (mit Zeilenende), etwa zum Kopieren.
+    func lesezeichenText() -> String {
+        lesezeichen.compactMap { z in text(sci(SCI_POSITIONFROMLINE, z)..<sci(SCI_GETLINEENDPOSITION, z)) }
+            .map { $0 + zeilenende }.joined()
+    }
+
+    /// Löscht die Zeilen mit Lesezeichen (oder alle ohne) in einem Schritt.
+    func loescheZeilenMitLesezeichen(ohne: Bool = false) {
+        let mit = Set(lesezeichen)
+        let zeilen = (0..<sci(SCI_GETLINECOUNT)).filter { ohne ? !mit.contains($0) : mit.contains($0) }
+        let bereiche = zeilen.map { z -> Range<Int> in
+            let von = sci(SCI_POSITIONFROMLINE, z)
+            let bis = z + 1 < sci(SCI_GETLINECOUNT) ? sci(SCI_POSITIONFROMLINE, z + 1) : sci(SCI_GETLENGTH)
+            return von..<bis
+        }
+        ersetze(bereiche.map { ($0, "") })
+    }
+
+    // MARK: Makros
+
+    func starteAufnahme() { sci(SCI_STARTRECORD) }
+    func beendeAufnahme() { sci(SCI_STOPRECORD) }
+
+    /// Spielt Schritte ab. Text liegt in den Schritten als String; der Zeiger
+    /// gilt nur während des Aufrufs.
+    func spiele(_ schritte: [Makroschritt]) {
+        for schritt in schritte {
+            if let text = schritt.text {
+                let bytes = Array(text.utf8) + [0]
+                bytes.withUnsafeBufferPointer { zeiger in
+                    let w = schritt.wMitLaenge ? UInt(bytes.count - 1) : schritt.w
+                    _ = ansicht.message(schritt.nachricht, wParam: w, lParam: Int(bitPattern: zeiger.baseAddress))
+                }
+            } else {
+                _ = ansicht.message(schritt.nachricht, wParam: schritt.w, lParam: schritt.l)
+            }
+        }
+    }
+
+    /// Text ab einem Zeiger von Scintilla: mit Länge, oder bis zum Nullbyte.
+    static func text(zeiger: Int, laenge: Int?) -> String? {
+        guard let p = UnsafeRawPointer(bitPattern: zeiger) else { return nil }
+        if let laenge { return String(decoding: UnsafeRawBufferPointer(start: p, count: laenge), as: UTF8.self) }
+        return String(cString: p.assumingMemoryBound(to: CChar.self))
+    }
+
+    var marke: Int { sci(SCI_GETCURRENTPOS) }
+    var laenge: Int { sci(SCI_GETLENGTH) }
+
+    func beginneSchritt() { sci(SCI_BEGINUNDOACTION) }
+    func beendeSchritt() { sci(SCI_ENDUNDOACTION) }
+
+    // MARK: Tippen
+
+    /// Neue Zeile mit der Einrückung der vorherigen (Auto-Einzug in Notepad++).
+    private func ruecke() {
+        let zeile = sci(SCI_LINEFROMPOSITION, sci(SCI_GETCURRENTPOS))
+        guard zeile > 0 else { return }
+        let einzug = sci(SCI_GETLINEINDENTATION, zeile - 1)
+        guard einzug > 0 else { return }
+        sci(SCI_SETLINEINDENTATION, zeile, einzug)
+        sci(SCI_GOTOPOS, sci(SCI_GETLINEINDENTPOSITION, zeile))
+    }
+
+    /// Schliesst Klammern und Anführungszeichen (Notepad++: «Auto-Insert»).
+    private func schliesseKlammer(_ zeichen: Int32) {
+        let paare: [Int32: String] = [0x28: ")", 0x5B: "]", 0x7B: "}", 0x22: "\"", 0x27: "'"]
+        guard sci(SCI_GETSELECTIONS) == 1, let zu = paare[zeichen] else { return }
+        let marke = sci(SCI_GETCURRENTPOS)
+        // Anführungszeichen nur, wenn danach kein Wortzeichen folgt und davor keins steht.
+        if zeichen == 0x22 || zeichen == 0x27 {
+            let davor = marke >= 2 ? sci(SCI_GETCHARAT, marke - 2) & 0xFF : 0
+            if davor != 0, (UInt8(davor) as UInt8).isWortzeichen { return }
+        }
+        let danach = sci(SCI_GETCHARAT, marke) & 0xFF
+        if danach != 0, (UInt8(danach) as UInt8).isWortzeichen { return }
+        zu.withCString { _ = sci(SCI_INSERTTEXT, marke, Int(bitPattern: $0)) }
+    }
+
     // MARK: Darstellung je Fenster
 
     var umbruch: Bool {
@@ -465,11 +857,23 @@ final class Editor: NSObject, ScintillaNotificationProtocol {
             geaendert?(false)
         case SCN_MODIFIED:
             if meldung.pointee.linesAdded != 0 { passeZeilennummernAn() }
+            meldeZustand()
         case SCN_UPDATEUI:
             markiereKlammern()
             if meldung.pointee.updated & Int32(SC_UPDATE_SELECTION | SC_UPDATE_V_SCROLL) != 0 {
                 hebeAuswahlHervor()
             }
+            meldeZustand()
+        case SCN_MARGINCLICK where Int(meldung.pointee.margin) == Self.randLesezeichen:
+            schalteLesezeichen(zeile: sci(SCI_LINEFROMPOSITION, meldung.pointee.position))
+        case SCN_MACRORECORD:
+            makroSchritt?(UInt32(bitPattern: meldung.pointee.message), meldung.pointee.wParam, meldung.pointee.lParam)
+        case SCN_FOCUSIN:
+            fokussiert?()
+        case SCN_CHARADDED:
+            let zeichen = meldung.pointee.ch
+            if (zeichen == 0x0A || zeichen == 0x0D), Einstellungen.autoEinzug { ruecke() }
+            if Einstellungen.klammernSchliessen { schliesseKlammer(zeichen) }
         case SCN_ZOOM:
             zeilennummernStellen = 0
             passeZeilennummernAn()
@@ -480,6 +884,13 @@ final class Editor: NSObject, ScintillaNotificationProtocol {
 }
 
 /// Scintilla erwartet Farben als 0xBBGGRR; Notepad++ schreibt sie als RRGGBB.
+extension UInt8 {
+    var isWortzeichen: Bool {
+        (0x30...0x39).contains(self) || (0x41...0x5A).contains(self) || (0x61...0x7A).contains(self) || self == 0x5F
+            || self >= 0x80
+    }
+}
+
 func scintillaFarbe(_ rgb: Int) -> Int {
     ((rgb & 0xFF) << 16) | (rgb & 0xFF00) | ((rgb >> 16) & 0xFF)
 }

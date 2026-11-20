@@ -8,6 +8,8 @@ enum Menue {
         leiste.addItem(untermenue(appName, [
             eintrag("Über \(appName)", #selector(NSApplication.orderFrontStandardAboutPanel(_:))),
             .separator(),
+            eintrag("Einstellungen …", #selector(AppDelegate.zeigeEinstellungen(_:)), ","),
+            .separator(),
             dienste(),
             .separator(),
             eintrag("\(appName) ausblenden", #selector(NSApplication.hide(_:)), "h"),
@@ -36,6 +38,41 @@ enum Menue {
             eintrag("Kopieren", #selector(NSText.copy(_:)), "c"),
             eintrag("Einsetzen", #selector(NSText.paste(_:)), "v"),
             eintrag("Alles auswählen", #selector(NSText.selectAll(_:)), "a"),
+            .separator(),
+            eintrag("Zeile duplizieren", #selector(EditorFenster.dupliziere(_:)), "d"),
+            eintrag("Zeilen löschen", #selector(EditorFenster.loescheZeilen(_:)), "k", [.command, .shift]),
+            eintrag("Zeilen nach oben", #selector(EditorFenster.zeilenHoch(_:)), taste(NSUpArrowFunctionKey), [.command, .option]),
+            eintrag("Zeilen nach unten", #selector(EditorFenster.zeilenRunter(_:)), taste(NSDownArrowFunctionKey), [.command, .option]),
+            eintrag("Zeilen verbinden", #selector(EditorFenster.verbindeZeilen(_:)), "j", [.command, .control]),
+            untermenue("Zeilen sortieren", Zeilenwerkzeug.Sortierung.allCases.map {
+                mitWert($0.name, #selector(EditorFenster.sortiere(_:)), $0.rawValue)
+            }),
+            untermenue("Zeilen", [
+                mitTag("Doppelte Zeilen entfernen", #selector(EditorFenster.zeilenBefehl(_:)), 1),
+                mitTag("Aufeinanderfolgende doppelte Zeilen entfernen", #selector(EditorFenster.zeilenBefehl(_:)), 2),
+                mitTag("Leere Zeilen entfernen", #selector(EditorFenster.zeilenBefehl(_:)), 3),
+                mitTag("Leere Zeilen entfernen (auch mit Leerzeichen)", #selector(EditorFenster.zeilenBefehl(_:)), 4),
+            ]),
+            untermenue("Leerzeichen", [
+                mitTag("Am Zeilenende entfernen", #selector(EditorFenster.zeilenBefehl(_:)), 10),
+                mitTag("Am Zeilenanfang entfernen", #selector(EditorFenster.zeilenBefehl(_:)), 11),
+                mitTag("An beiden Enden entfernen", #selector(EditorFenster.zeilenBefehl(_:)), 12),
+                .separator(),
+                mitTag("Tabs in Leerzeichen", #selector(EditorFenster.zeilenBefehl(_:)), 13),
+                mitTag("Einrückung: Leerzeichen in Tabs", #selector(EditorFenster.zeilenBefehl(_:)), 14),
+            ]),
+            untermenue("Gross/klein", Schreibung.allCases.map { art -> NSMenuItem in
+                let e = mitWert(art.name, #selector(EditorFenster.schreibung(_:)), art.rawValue)
+                if art == .gross { e.keyEquivalent = "u"; e.keyEquivalentModifierMask = [.command, .shift] }
+                if art == .klein { e.keyEquivalent = "u"; e.keyEquivalentModifierMask = [.command, .option] }
+                return e
+            }),
+            .separator(),
+            eintrag("Kommentar umschalten", #selector(EditorFenster.kommentar(_:)), "/"),
+            eintrag("Blockkommentar umschalten", #selector(EditorFenster.blockkommentar(_:)), "/", [.command, .option]),
+            eintrag("Spalteneditor …", #selector(EditorFenster.spalteneditor(_:)), "c", [.command, .option]),
+            .separator(),
+            eintrag("Überschreiben", #selector(EditorFenster.ueberschreiben(_:))),
         ]))
 
         leiste.addItem(untermenue("Suchen", [
@@ -53,6 +90,19 @@ enum Menue {
             eintrag("Gehe zu Zeile …", #selector(EditorFenster.geheZuZeile(_:)), "l"),
             eintrag("Zur passenden Klammer", #selector(EditorFenster.zurPassendenKlammer(_:)), "b"),
             eintrag("Bis zur passenden Klammer auswählen", #selector(EditorFenster.bisZurPassendenKlammer(_:)), "b", [.command, .shift]),
+            .separator(),
+            untermenue("Lesezeichen", [
+                eintrag("Lesezeichen setzen/entfernen", #selector(EditorFenster.lesezeichenSchalten(_:)), taste(NSF2FunctionKey)),
+                eintrag("Nächstes Lesezeichen", #selector(EditorFenster.naechstesLesezeichen(_:)), taste(NSF2FunctionKey), []),
+                eintrag("Vorheriges Lesezeichen", #selector(EditorFenster.vorherigesLesezeichen(_:)), taste(NSF2FunctionKey), [.shift]),
+                eintrag("Alle Lesezeichen entfernen", #selector(EditorFenster.lesezeichenEntfernen(_:))),
+                .separator(),
+                eintrag("Zeilen mit Lesezeichen kopieren", #selector(EditorFenster.lesezeichenKopieren(_:))),
+                eintrag("Zeilen mit Lesezeichen ausschneiden", #selector(EditorFenster.lesezeichenAusschneiden(_:))),
+                eintrag("Zeilen mit Lesezeichen löschen", #selector(EditorFenster.lesezeichenZeilenLoeschen(_:))),
+                eintrag("Zeilen ohne Lesezeichen löschen", #selector(EditorFenster.zeilenOhneLesezeichenLoeschen(_:))),
+                eintrag("Lesezeichen umkehren", #selector(EditorFenster.lesezeichenUmkehren(_:))),
+            ]),
         ]))
 
         leiste.addItem(untermenue("Darstellung", [
@@ -67,26 +117,17 @@ enum Menue {
             .separator(),
             eintrag("Alles einklappen", #selector(EditorFenster.allesEinklappen(_:)), "0", [.command, .option]),
             eintrag("Alles ausklappen", #selector(EditorFenster.allesAusklappen(_:)), "0", [.command, .option, .shift]),
+            .separator(),
+            untermenue("Geteilte Ansicht", [
+                mitTag("Keine", #selector(EditorFenster.geteilteAnsicht(_:)), 0),
+                mitTag("Übereinander", #selector(EditorFenster.geteilteAnsicht(_:)), 1),
+                mitTag("Nebeneinander", #selector(EditorFenster.geteilteAnsicht(_:)), 2),
+            ]),
         ]))
 
-        leiste.addItem(sprachen())
-
-        // Wie in Notepad++: Ein Haken zeigt den Zeichensatz und das Zeilenende
-        // des Dokuments; ein Klick stellt um, wirksam beim nächsten Sichern.
-        let zeichensaetze = Textdatei.Kodierung.allCases
-        leiste.addItem(untermenue("Kodierung", [
-            ueberschrift("Sichern als"),
-        ] + zeichensaetze.map {
-            mitTag($0.name, #selector(Dokument.kodierungUmwandeln(_:)), $0.rawValue)
-        } + [
-            untermenue("Neu öffnen als", zeichensaetze.map {
-                mitTag($0.name, #selector(Dokument.neuOeffnenAls(_:)), $0.rawValue)
-            }),
-            .separator(),
-            ueberschrift("Zeilenende"),
-        ] + [Textdatei.Zeilenende.crlf, .lf, .cr].map {
-            mitTag($0.name, #selector(Dokument.zeilenendeUmwandeln(_:)), $0.rawValue)
-        }))
+        leiste.addItem(untermenue("Kodierung", kodierungsEintraege() + [.separator(), ueberschrift("Zeilenende")] + zeilenendeEintraege()))
+        leiste.addItem(untermenue("Sprache", sprachEintraege()))
+        leiste.addItem(MakroMenue.gemeinsam.menue())
 
         let fenster = untermenue("Fenster", [
             eintrag("Im Dock ablegen", #selector(NSWindow.performMiniaturize(_:)), "m"),
@@ -101,7 +142,7 @@ enum Menue {
         return leiste
     }
 
-    private static func untermenue(_ titel: String, _ eintraege: [NSMenuItem]) -> NSMenuItem {
+    static func untermenue(_ titel: String, _ eintraege: [NSMenuItem]) -> NSMenuItem {
         let menue = NSMenu(title: titel)
         eintraege.forEach(menue.addItem)
         let kopf = NSMenuItem(title: titel, action: nil, keyEquivalent: "")
@@ -119,8 +160,9 @@ enum Menue {
     }
 
     /// Wie in Notepad++: «Normaler Text» oben, darunter die Sprachen nach dem
-    /// Anfangsbuchstaben in Untermenüs.
-    private static func sprachen() -> NSMenuItem {
+    /// Anfangsbuchstaben in Untermenüs. Auch für die Statusleiste; jeder Aufruf
+    /// baut neue Einträge (ein Eintrag gehört immer nur einem Menü).
+    static func sprachEintraege() -> [NSMenuItem] {
         let alle = Sprachdaten.gemeinsam.sprachen.filter { $0.imMenue && !$0.istNormalerText }
         let gruppen = Dictionary(grouping: alle) { String($0.kurz.prefix(1)).uppercased() }
         var eintraege = [spracheEintrag(Sprachdaten.gemeinsam.normal, titel: "Normaler Text"), .separator()]
@@ -128,7 +170,32 @@ enum Menue {
             let sprachen = gruppen[buchstabe]!.sorted { $0.kurz.localizedCaseInsensitiveCompare($1.kurz) == .orderedAscending }
             eintraege.append(untermenue(buchstabe, sprachen.map { spracheEintrag($0, titel: $0.kurz) }))
         }
-        return untermenue("Sprache", eintraege)
+        return eintraege
+    }
+
+    /// Wie in Notepad++: Ein Haken zeigt den Zeichensatz des Dokuments; ein
+    /// Klick stellt um, wirksam beim nächsten Sichern.
+    static func kodierungsEintraege() -> [NSMenuItem] {
+        let zeichensaetze = Textdatei.Kodierung.allCases
+        return [ueberschrift("Sichern als")]
+            + zeichensaetze.map { mitTag($0.name, #selector(Dokument.kodierungUmwandeln(_:)), $0.rawValue) }
+            + [untermenue("Neu öffnen als", zeichensaetze.map {
+                mitTag($0.name, #selector(Dokument.neuOeffnenAls(_:)), $0.rawValue)
+            })]
+    }
+
+    static func zeilenendeEintraege() -> [NSMenuItem] {
+        [Textdatei.Zeilenende.crlf, .lf, .cr].map { mitTag($0.name, #selector(Dokument.zeilenendeUmwandeln(_:)), $0.rawValue) }
+    }
+
+    static func taste(_ funktionstaste: Int) -> String {
+        String(Character(Unicode.Scalar(UInt32(funktionstaste))!))
+    }
+
+    private static func mitWert(_ titel: String, _ aktion: Selector, _ wert: String) -> NSMenuItem {
+        let eintrag = NSMenuItem(title: titel, action: aktion, keyEquivalent: "")
+        eintrag.representedObject = wert
+        return eintrag
     }
 
     private static func spracheEintrag(_ sprache: Sprache, titel: String) -> NSMenuItem {

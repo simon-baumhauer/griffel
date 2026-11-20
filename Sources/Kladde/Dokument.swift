@@ -221,6 +221,11 @@ final class Dokumente: NSDocumentController {
         withAlertTitle title: String?, cancellable: Bool, delegate: Any?,
         didReviewAllSelector: Selector?, contextInfo: UnsafeMutableRawPointer?
     ) {
+        guard Einstellungen.sitzungMerken else {
+            return super.reviewUnsavedDocuments(
+                withAlertTitle: title, cancellable: cancellable, delegate: delegate,
+                didReviewAllSelector: didReviewAllSelector, contextInfo: contextInfo)
+        }
         Sitzung.sichere()
         guard let ziel = delegate as AnyObject?, let auswahl = didReviewAllSelector,
             let methode = ziel.method(for: auswahl)

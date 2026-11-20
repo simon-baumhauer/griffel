@@ -56,6 +56,9 @@ enum Probe {
         }
 
         switch aktion {
+        case "etappe5":
+            etappe5(ordner: ordner, bericht: { bericht.append($0) }, fertig: schliesse)
+            return
         case "suchen":
             sucheProbe(dokumente: dokumente, ordner: ordner, bericht: { bericht.append($0) }, fertig: schliesse)
             return
@@ -311,6 +314,127 @@ enum Probe {
             arbeit {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { fuehreAus(index + 1) }
             }
+        }
+        fuehreAus(0)
+    }
+
+    /// Zeilenbefehle, Kommentare, Gross/klein, Lesezeichen, Makro, Spalteneditor,
+    /// geteilte Ansicht, Statusleiste und Einstellungen am vordersten Dokument.
+    private static func etappe5(ordner: URL, bericht: @escaping (String) -> Void, fertig: @escaping () -> Void) {
+        guard let f = NSApp.orderedWindows.lazy.compactMap({ $0.windowController as? EditorFenster }).first,
+            let fenster = f.window
+        else {
+            bericht("etappe5: kein Fenster")
+            return fertig()
+        }
+        let e = f.editor
+        func text() -> String { String(decoding: e.utf8, as: UTF8.self).replacingOccurrences(of: "\n", with: "⏎") }
+        func setze(_ t: String) {
+            e.ersetze([(0..<e.laenge, t)])
+            e.waehleAus(0..<0)
+        }
+        func menue(_ tag: Int) -> NSMenuItem { eintrag(tag) }
+        func wert(_ w: String) -> NSMenuItem {
+            let m = NSMenuItem()
+            m.representedObject = w
+            return m
+        }
+        var schritte: [() -> Void] = []
+
+        schritte.append {
+            setze("birne\nApfel\n10\napfel\n\n2\nApfel\n")
+            f.sortiere(wert("aufsteigend"))
+            bericht("sortiert: \(text())")
+            f.sortiere(wert("ganzzahlAuf"))
+            bericht("als Zahlen: \(text())")
+            f.zeilenBefehl(menue(1))
+            bericht("ohne Doppelte: \(text())")
+            f.zeilenBefehl(menue(3))
+            bericht("ohne Leere: \(text())")
+            setze("a  \n\tb\t\n")
+            f.zeilenBefehl(menue(12))
+            bericht("gekürzt: \(text())")
+        }
+        schritte.append {
+            setze("def f():\n    return 1\n")
+            (f.document as? Dokument)?.gewaehlteSprache = "python"
+            e.setzeSprache(Sprachdaten.gemeinsam.sprache("python")!)
+            e.waehleAus(0..<e.laenge)
+            f.kommentar(nil)
+            bericht("kommentiert (python): \(text())")
+            f.kommentar(nil)
+            bericht("zurück: \(text())")
+            setze("grüezi wohl")
+            e.waehleAus(0..<e.laenge)
+            f.schreibung(wert("woerterGross"))
+            bericht("Wörter gross: \(text())")
+            e.waehleAus(0..<0)
+            f.dupliziere(nil)
+            bericht("dupliziert: \(text())")
+        }
+        schritte.append {
+            setze("eins\nzwei\ndrei\nvier\nfünf")
+            e.lesezeichen = [1, 3]
+            e.geheZuZeile(1)
+            f.naechstesLesezeichen(nil)
+            let erste = e.aktuelleZeile
+            f.naechstesLesezeichen(nil)
+            bericht("lesezeichen \(e.lesezeichen), springt zu Zeile \(erste) und \(e.aktuelleZeile), text «\(e.lesezeichenText().replacingOccurrences(of: "\n", with: "⏎"))»")
+            f.zeilenOhneLesezeichenLoeschen(nil)
+            bericht("nur Zeilen mit Lesezeichen: \(text())")
+        }
+        schritte.append {
+            // Makro: Zeilenanfang, «- » einsetzen, eine Zeile tiefer; dann bis zum Ende.
+            setze("a\nb\nc\nd")
+            Makros.gemeinsam.starte(in: e)
+            _ = e.ansicht.message(UInt32(SCI_HOME), wParam: 0, lParam: 0)
+            e.ansicht.insertText("- ")
+            _ = e.ansicht.message(UInt32(SCI_LINEDOWN), wParam: 0, lParam: 0)
+            Makros.gemeinsam.beende()
+            bericht("makro: \(Makros.gemeinsam.aktuelles.count) Schritte, nach Aufnahme: \(text())")
+            let mal = Makros.gemeinsam.spieleBisEnde(Makros.gemeinsam.aktuelles, in: e)
+            bericht("bis zum Ende (\(mal)×): \(text())")
+            // Längere letzte Zeile: darf nicht ewig an ihr weiterschreiben.
+            setze("aa\nbb\ncc\nlange letzte Zeile")
+            e.geheZuZeile(2)
+            let mal2 = Makros.gemeinsam.spieleBisEnde(Makros.gemeinsam.aktuelles, in: e)
+            bericht("bis zum Ende ab Zeile 2 (\(mal2)×): \(text())")
+        }
+        schritte.append {
+            setze("x\ny\nz")
+            var folge = Zahlenfolge()
+            folge.anfang = 8
+            folge.fuehrend = .nullen
+            e.waehleAus(0..<0)
+            let zeilen = e.fuegeInSpalteEin { folge.texte($0) }
+            bericht("spalteneditor in \(zeilen) Zeilen: \(text())")
+        }
+        schritte.append {
+            setze((1...40).map { "Zeile \($0) mit etwas Text" }.joined(separator: "\n"))
+            e.lesezeichen = [2, 5]
+            e.waehleAus(30..<45)
+            f.teile(1)
+        }
+        schritte.append {
+            bericht("geteilt: \(f.geteilt), statusleiste sichtbar")
+            bild(von: fenster, nach: ordner.appendingPathComponent("geteilt.png"))
+            f.teile(0)
+            bericht("wieder eine Ansicht: \(f.geteilt)")
+        }
+        schritte.append {
+            EinstellungsFenster.gemeinsam.zeige()
+        }
+        schritte.append {
+            if let w = EinstellungsFenster.gemeinsam.window { bild(von: w, nach: ordner.appendingPathComponent("einstellungen.png")) }
+            EinstellungsFenster.gemeinsam.close()
+            // Probeinhalt verwerfen, damit die Sitzung ihn nicht aufhebt.
+            setze("")
+            (f.document as? Dokument)?.updateChangeCount(.changeCleared)
+        }
+        func fuehreAus(_ i: Int) {
+            guard i < schritte.count else { return fertig() }
+            schritte[i]()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { fuehreAus(i + 1) }
         }
         fuehreAus(0)
     }

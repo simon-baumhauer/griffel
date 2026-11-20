@@ -4,7 +4,9 @@ import AppKit
 /// «Suchen» von Notepad++: dieselben Modi und Optionen, aber im Fenster statt
 /// darüber. Text und Optionen teilen sich alle Fenster (SuchZustand).
 final class Suchleiste: NSView, NSTextFieldDelegate {
-    private let editor: Editor
+    /// Der Editor, auf den die Leiste wirkt: bei geteilter Ansicht der mit dem Fokus.
+    private let editorQuelle: () -> Editor
+    private var editor: Editor { editorQuelle() }
     /// Schliessen gedrückt: Das Fenster blendet die Leiste aus.
     var schliessen: (() -> Void)?
 
@@ -17,6 +19,7 @@ final class Suchleiste: NSView, NSTextFieldDelegate {
     private let punkt = NSButton(checkboxWithTitle: "«.» findet Zeilenende", target: nil, action: nil)
     private let umbruch = NSButton(checkboxWithTitle: "Am Ende vorne weiter", target: nil, action: nil)
     private let nurAuswahl = NSButton(checkboxWithTitle: "Nur in Auswahl", target: nil, action: nil)
+    private let lesezeichen = NSButton(checkboxWithTitle: "Lesezeichen setzen", target: nil, action: nil)
     private var ersetzZeile: NSStackView!
 
     private var eigeneAenderung = false
@@ -24,8 +27,8 @@ final class Suchleiste: NSView, NSTextFieldDelegate {
     private var liveAb = 0
     private var beobachter: NSObjectProtocol?
 
-    init(editor: Editor) {
-        self.editor = editor
+    init(editor: @escaping () -> Editor) {
+        editorQuelle = editor
         super.init(frame: .zero)
         baue()
         uebernehme()
@@ -88,16 +91,18 @@ final class Suchleiste: NSView, NSTextFieldDelegate {
         modus.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
         modus.target = self
         modus.action = #selector(optionGeaendert)
-        for schalter in [grossKlein, ganzesWort, punkt, umbruch, nurAuswahl] {
+        for schalter in [grossKlein, ganzesWort, punkt, umbruch, nurAuswahl, lesezeichen] {
             schalter.controlSize = .small
             schalter.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
             schalter.target = self
             schalter.action = #selector(optionGeaendert)
         }
         nurAuswahl.action = nil
+        lesezeichen.action = nil
+        lesezeichen.toolTip = "«Alle markieren» setzt auch ein Lesezeichen in jede Zeile mit Treffer"
         nurAuswahl.toolTip = "«Alle ersetzen» und «Alle markieren» nur in der Auswahl"
         punkt.toolTip = "Nur bei «Regulärer Ausdruck»"
-        let optionenZeile = zeile([modus, grossKlein, ganzesWort, umbruch, punkt, nurAuswahl, NSView()])
+        let optionenZeile = zeile([modus, grossKlein, ganzesWort, umbruch, punkt, nurAuswahl, lesezeichen, NSView()])
 
         let stapel = NSStackView(views: [suchZeile, ersetzZeile, optionenZeile])
         stapel.orientation = .vertical
@@ -221,7 +226,9 @@ final class Suchleiste: NSView, NSTextFieldDelegate {
     @objc private func ersetzen() { zeige(Suchaktion.ersetzen(in: editor)) }
     @objc private func alleErsetzen() { zeige(Suchaktion.alleErsetzen(in: editor, nurAuswahl: nurAuswahl.state == .on)) }
     @objc private func alleErsetzenInOffenen() { zeige(Suchaktion.alleErsetzenInOffenen()) }
-    @objc private func alleMarkieren() { zeige(Suchaktion.alleMarkieren(in: editor, nurAuswahl: nurAuswahl.state == .on)) }
+    @objc private func alleMarkieren() {
+        zeige(Suchaktion.alleMarkieren(in: editor, nurAuswahl: nurAuswahl.state == .on, lesezeichen: lesezeichen.state == .on))
+    }
 
     @objc private func alleFindenHier() {
         guard let dokument = window?.windowController?.document as? Dokument else { return }

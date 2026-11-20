@@ -26,6 +26,7 @@ rm -rf $APP
 mkdir -p $APP/Contents/MacOS $APP/Contents/Frameworks $APP/Contents/Resources
 cp .build/release/Kladde $APP/Contents/MacOS/
 cp Ressourcen/Info.plist $APP/Contents/
+cp Ressourcen/kladde $APP/Contents/Resources/kladde
 cp -R $KERN/Scintilla.framework $APP/Contents/Frameworks/
 cp $KERN/liblexilla.dylib $APP/Contents/Frameworks/
 cp LICENSE $APP/Contents/Resources/LICENSE-GPL.txt

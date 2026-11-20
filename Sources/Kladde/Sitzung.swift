@@ -18,6 +18,8 @@ enum Sitzung {
         var aktiv: Bool
         /// Nur wenn von Hand im Menü «Sprache» gewählt; sonst wird neu erkannt.
         var sprache: String?
+        /// Zeilen mit Lesezeichen, ab 0.
+        var lesezeichen: [Int]?
     }
 
     /// Mit «-KladdeSitzung /pfad» beim Start liegt die Sitzung woanders (für Prüfläufe).
@@ -36,6 +38,11 @@ enum Sitzung {
     static func sichere() {
         let dateien = FileManager.default
         try? dateien.createDirectory(at: ordner, withIntermediateDirectories: true)
+        guard Einstellungen.sitzungMerken else {
+            // Abgeschaltet: nichts merken, auch keine alten Sicherungen liegen lassen.
+            try? dateien.removeItem(at: ordner)
+            return
+        }
 
         // Das vorderste Fenster, auch wenn die App gerade nicht aktiv ist
         // (dann gibt es kein mainWindow).
@@ -61,7 +68,8 @@ enum Sitzung {
                     pfad: dokument.fileURL?.path, sicherung: sicherung,
                     kodierung: stand.kodierung, zeilenende: stand.zeilenende,
                     position: editor.position, ersteZeile: editor.ersteZeile,
-                    aktiv: dokument === vorne, sprache: dokument.gewaehlteSprache))
+                    aktiv: dokument === vorne, sprache: dokument.gewaehlteSprache,
+                    lesezeichen: editor.lesezeichen.isEmpty ? nil : editor.lesezeichen))
         }
 
         guard let json = try? JSONEncoder().encode(eintraege),
@@ -80,7 +88,7 @@ enum Sitzung {
     /// Öffnet, was die letzte Sitzung nennt. Antwort: wie viele Dokumente.
     @discardableResult
     static func stelleWiederHer() -> Int {
-        guard let json = try? Data(contentsOf: liste),
+        guard Einstellungen.sitzungMerken, let json = try? Data(contentsOf: liste),
             let eintraege = try? JSONDecoder().decode([Eintrag].self, from: json)
         else { return 0 }
 
@@ -109,6 +117,7 @@ enum Sitzung {
             dokument.showWindows()
             dokument.editor?.position = eintrag.position
             dokument.editor?.ersteZeile = eintrag.ersteZeile
+            if let zeilen = eintrag.lesezeichen { dokument.editor?.lesezeichen = zeilen }
             if eintrag.aktiv { vorne = dokument }
             geoeffnet += 1
         }

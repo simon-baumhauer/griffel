@@ -91,7 +91,7 @@ enum Suchaktion {
     }
 
     /// Wie «Alle markieren» in Notepad++: bleibt stehen, bis «Markierungen entfernen».
-    static func alleMarkieren(in editor: Editor, nurAuswahl: Bool) -> Antwort {
+    static func alleMarkieren(in editor: Editor, nurAuswahl: Bool, lesezeichen: Bool = false) -> Antwort {
         let muster: Suchmuster
         do { muster = try SuchZustand.gemeinsam.muster() } catch { return fehler(error) }
         let auswahl = editor.auswahl
@@ -99,6 +99,7 @@ enum Suchaktion {
         let treffer = muster.alle(in: editor.suchtext, bereich: nurAuswahl ? auswahl : nil)
         editor.loescheMarkierungen(Editor.indikatorMarkiert)
         editor.markiere(treffer.map(\.bereich), indikator: Editor.indikatorMarkiert)
+        if lesezeichen { editor.setzeLesezeichen(fuer: treffer.map(\.bereich)) }
         return Antwort(text: treffer.isEmpty ? "Nicht gefunden" : "\(treffer.count) markiert", fehler: treffer.isEmpty)
     }
 

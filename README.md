@@ -31,7 +31,7 @@ Das Ergebnis ist `build/Kladde.app`. Nur den Kern neu bauen: `./scripts/extern-b
 
 ## Stand
 
-Etappe 4 von 7.
+Etappe 5 von 7.
 
 - **Etappe 1:** Fenster, Tippen, Öffnen, Sichern, Tabs, Zeilennummern.
 - **Etappe 2:** Menü «Kodierung» wie in Notepad++: Zeichensatz (UTF-8, UTF-8 mit BOM, UTF-16 LE/BE,
@@ -55,14 +55,25 @@ Etappe 4 von 7.
   ersetzt erst nach Rückfrage und hält Zeichensatz, Zeilenenden und Rechte der Dateien. Treffer im
   Fenster «Suchergebnisse» (⌥⇧⌘F), Doppelklick springt hin. Smart Highlighting: ein ausgewähltes
   ganzes Wort leuchtet überall im sichtbaren Teil. Gehe zu Zeile (⌘L), zur passenden Klammer (⌘B).
+- **Etappe 5:** Unter «Bearbeiten»: Zeile duplizieren (⌘D), Zeilen löschen (⇧⌘K), verschieben
+  (⌥⌘↑/↓), verbinden (⌃⌘J), sortieren (14 Arten wie in Notepad++), doppelte und leere Zeilen
+  entfernen, Leerzeichen kürzen, Tabs ↔ Leerzeichen, Gross/klein (acht Arten), Kommentar und
+  Blockkommentar umschalten (⌘/, ⌥⌘/, nach den Zeichen der Sprache), Spalteneditor (⌥⌘C) für Text
+  oder Zahlenfolgen, Überschreiben. Lesezeichen im Rand (⌘F2, F2, ⇧F2) samt «Zeilen mit
+  Lesezeichen kopieren/löschen»; «Alle markieren» kann sie setzen; die Sitzung merkt sie sich.
+  Menü «Makro»: aufnehmen (⇧⌘R), abspielen (⇧⌘P), mehrfach oder bis zum Ende, unter einem Namen
+  sichern. Geteilte Ansicht (übereinander oder nebeneinander, derselbe Text). Statusleiste mit
+  Sprache, Länge, Position, Auswahl, Zeilenende, Zeichensatz und EINF/ÜB, die drei ersten zum
+  Umstellen per Klick. Einstellungen (⌘,): Schrift, Grösse, Farbschema, Tabbreite, Anzeige,
+  Auto-Einzug, Klammern schliessen, Smart Highlighting, Sitzung.
 
 Die Regex ist die von ICU (`NSRegularExpression`), nicht die Boost-Regex von Notepad++. Für das
 Übliche gleich; benannte Gruppen im Ersetzungstext (`$+{name}`) und `\<`, `\>` kennt sie nicht.
 
 Sprachen und Farbschemata entstehen beim Bauen aus `langs.model.xml`, `stylers.model.xml` und
 `installer/themes/` von Notepad++ (`scripts/sprachdaten.py`). Wie Notepad++ jede Sprache in
-Scintilla einrichtet, steht in `Sources/Kladde/Sprachregeln.swift`. Die Schrift ist auf dem Mac
-immer Menlo 13; die Schriften der Farbschemata (meist Courier New) gelten nicht.
+Scintilla einrichtet, steht in `Sources/Kladde/Sprachregeln.swift`. Die Schrift kommt aus den
+Einstellungen (Vorgabe Menlo 13); die Schriften der Farbschemata (meist Courier New) gelten nicht.
 
 Noch nicht dabei: benutzerdefinierte Sprachen (UDL). Der Lexer dafür braucht `<windows.h>` und
 einen eigenen Dialog; bis dahin steht in `extern/LexillaLuecken.cxx` ein leerer Platzhalter.
@@ -76,7 +87,7 @@ fasst sie nie an; erst «Sichern» schreibt sie.
 swift test
 ```
 
-prüft Zeichensätze, Suchen, Ersetzen und die Suche im Ordner (31 Tests).
+prüft Zeichensätze, Suchen, Ersetzen, die Suche im Ordner und die Textwerkzeuge (40 Tests).
 
 Die App kann sich selbst prüfen und schreibt einen Bericht samt Bildern der Fenster
 (`Sources/Kladde/Probe.swift`). Im Hintergrund starten, damit sie keine Tasten abfängt:
