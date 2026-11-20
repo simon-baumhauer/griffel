@@ -3,7 +3,7 @@ import ScintillaBruecke
 
 /// Selbstprüfung der laufenden App, für den Bau ohne Zuschauer:
 ///
-///     open -n -a build/Kladde.app datei1 datei2 --args -KladdeProbe /pfad/zum/ordner \
+///     open -n -a build/Griffel.app datei1 datei2 --args -KladdeProbe /pfad/zum/ordner \
 ///         [-KladdeProbeAktion sichern|tippen|nichts] [-KladdeSitzung /pfad/zur/sitzung]
 ///
 /// Die App schreibt je Dokument ein Bild und in bericht.txt, was sie sieht.
@@ -33,6 +33,9 @@ enum Probe {
         }
 
         bericht.append("menü: " + (NSApp.mainMenu?.items.map(\.title).joined(separator: " | ") ?? "keines"))
+        bericht.append("app-menü: " + (NSApp.mainMenu?.items.first?.submenu?.items
+            .map { $0.isSeparatorItem ? "—" : $0.title }.joined(separator: " | ") ?? "keines"))
+        bericht.append("fenstertitel: " + (Hauptfenster.gemeinsam.window?.title ?? "keiner"))
         let h = Hauptfenster.gemeinsam
         let vorne = h.aktivesDokument
         let dokumente = h.tabs
@@ -1145,7 +1148,7 @@ enum Probe {
         func setze(_ t: String) { e.ersetze([(0..<e.laenge, t)]); e.waehleAus(0..<0) }
         var schritte: [() -> Void] = []
         schritte.append {
-            setze(#"{"name":"Kladde","version":1.20,"plugins":["JSON Viewer","XML Tools"],"frei":true,"leer":{}}"#)
+            setze(#"{"name":"Griffel","version":1.20,"plugins":["JSON Viewer","XML Tools"],"frei":true,"leer":{}}"#)
             p.fuehreAus("json.format")
             bericht("json format:\n" + text())
             p.fuehreAus("json.viewer")

@@ -88,7 +88,7 @@ struct Oberflaeche: Decodable {
             let daten = try? Data(contentsOf: url),
             let o = try? JSONDecoder().decode(Oberflaeche.self, from: daten)
         else {
-            NSLog("Kladde: oberflaeche.json fehlt im Bündel")
+            NSLog("Griffel: oberflaeche.json fehlt im Bündel")
             return Oberflaeche(
                 menues: [], tabmenue: [], suchen: Suchen(titel: [:], groesse: [411, 197], elemente: []), texte: [:])
         }
@@ -149,7 +149,7 @@ struct Oberflaeche: Decodable {
 }
 
 /// Wörter, die in Notepad++ zu Windows gehören, auf dem Mac richtig benannt;
-/// und wo Notepad++ sich selbst meint, steht Kladde.
+/// und wo Notepad++ sich selbst meint, steht Griffel.
 enum Mac {
     private static let ersatz: [(String, String)] = [
         ("Eingabeaufforderung/Kommandozeile", "Terminal"),
@@ -159,7 +159,7 @@ enum Mac {
         ("STRG + ", "⌘ + "),
         ("Strg+", "⌘+"),
         ("in Windows", "in macOS"),
-        ("Notepad++", "Kladde"),
+        ("Notepad++", "Griffel"),
         ("Papierkorb", "Papierkorb"),
     ]
 

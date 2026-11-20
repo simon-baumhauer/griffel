@@ -70,7 +70,7 @@ final class Sprachdaten {
             .flatMap { try? Data(contentsOf: $0.appendingPathComponent("farbschemata.json")) }
             .flatMap { try? dekoder.decode([String].self, from: $0) } ?? []
         if sprachen.isEmpty {
-            NSLog("Kladde: Sprachdaten fehlen im Bündel; es gibt nur normalen Text.")
+            NSLog("Griffel: Sprachdaten fehlen im Bündel; es gibt nur normalen Text.")
         }
 
         nachName = Dictionary(sprachen.map { ($0.name, $0) }, uniquingKeysWith: { erste, _ in erste })
@@ -130,8 +130,7 @@ final class Sprachdaten {
     /// Mit «-KladdeUDL /pfad» beim Start liegt er woanders (für Prüfläufe).
     static var benutzersprachenOrdner: URL {
         if let pfad = UserDefaults.standard.string(forKey: "KladdeUDL") { return URL(fileURLWithPath: pfad, isDirectory: true) }
-        return FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("Kladde/userDefineLangs", isDirectory: true)
+        return Ablage.ordner.appendingPathComponent("userDefineLangs", isDirectory: true)
     }
 
     struct Eigene {

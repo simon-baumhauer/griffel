@@ -1,4 +1,4 @@
-"""Die Oberfläche von Notepad++ als Daten für Kladde: Menüs, Tastenkürzel,
+"""Die Oberfläche von Notepad++ als Daten für Griffel: Menüs, Tastenkürzel,
 Tab-Kontextmenü, Suchen-Dialog und Statusleiste, mit den Texten der deutschen
 Fassung.
 

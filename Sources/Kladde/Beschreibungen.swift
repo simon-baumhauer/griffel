@@ -2,7 +2,7 @@ import AppKit
 
 /// Was ein Befehl genau tut, in einem Satz: für den Hinweis über den Knöpfen der
 /// Werkzeugleiste und als Tooltip in den Menüs. Notepad++ selbst zeigt nur den
-/// Namen; Kladde erklärt dazu, was passiert.
+/// Namen; Griffel erklärt dazu, was passiert.
 enum Beschreibung {
     static func text(_ id: String) -> String? { texte[id] }
 
@@ -47,8 +47,8 @@ enum Beschreibung {
         "IDM_FILE_SAVEAS": "Sichert das Dokument unter einem neuen Namen; der Tab zeigt danach auf die neue Datei.",
         "IDM_FILE_SAVECOPYAS": "Schreibt eine Kopie in eine andere Datei; der Tab bleibt bei der bisherigen.",
         "IDM_FILE_SAVEALL": "Sichert alle geänderten Dokumente in allen Tabs.",
-        "IDM_FILE_CLOSE": "Schliesst den aktiven Tab; bei ungesicherten Änderungen fragt Kladde nach.",
-        "IDM_FILE_CLOSEALL": "Schliesst alle Tabs; ungesicherte Änderungen fragt Kladde einzeln ab.",
+        "IDM_FILE_CLOSE": "Schliesst den aktiven Tab; bei ungesicherten Änderungen fragt Griffel nach.",
+        "IDM_FILE_CLOSEALL": "Schliesst alle Tabs; ungesicherte Änderungen fragt Griffel einzeln ab.",
         "IDM_FILE_CLOSEALL_BUT_CURRENT": "Schliesst alle Tabs ausser dem aktiven.",
         "IDM_FILE_CLOSEALL_BUT_PINNED": "Schliesst alle Tabs, die nicht angeheftet sind.",
         "IDM_FILE_CLOSEALL_TOLEFT": "Schliesst alle Tabs links vom aktiven.",
@@ -60,7 +60,7 @@ enum Beschreibung {
         "IDM_FILE_RENAME": "Benennt die Datei auf der Platte um, der Tab folgt.",
         "IDM_FILE_DELETE": "Verschiebt die Datei in den Papierkorb und schliesst den Tab.",
         "IDM_FILE_OPENFOLDERASWORKSPACE": "Zeigt einen Ordner links als Baum, zum schnellen Öffnen seiner Dateien.",
-        "IDM_FILE_LOADSESSION": "Öffnet alle Dateien einer gesicherten Sitzung (.kladde-sitzung).",
+        "IDM_FILE_LOADSESSION": "Öffnet alle Dateien einer gesicherten Sitzung (.griffel-sitzung).",
         "IDM_FILE_SAVESESSION": "Merkt sich alle offenen Tabs als Sitzungsdatei, um sie später wieder zu öffnen.",
         "IDM_FILE_OPEN_FOLDER": "Zeigt die Datei im Finder.",
         "IDM_FILE_OPEN_CMD": "Öffnet ein Terminal im Ordner der Datei.",

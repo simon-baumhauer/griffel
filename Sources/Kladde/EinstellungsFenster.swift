@@ -2,7 +2,7 @@ import AppKit
 
 /// Der Dialog «Optionen» (Einstellungen → Optionen …, ⌘,) wie in Notepad++:
 /// Rahmen und alle 23 Seiten aus preference.rc, mit den deutschen Texten.
-/// Was Kladde einstellen kann, ist verdrahtet und gilt sofort; alles andere
+/// Was Griffel einstellen kann, ist verdrahtet und gilt sofort; alles andere
 /// steht ausgegraut da, wie nicht umgesetzte Befehle in den Menüs.
 final class EinstellungsFenster: NSWindowController, NSWindowDelegate {
     static let gemeinsam = EinstellungsFenster()
@@ -248,7 +248,7 @@ final class EinstellungsFenster: NSWindowController, NSWindowDelegate {
         let namen = [""] + sprachenListe.map(\.name)
         b["IDC_COMBO_DEFAULTLANG"] = .auswahl(["Normaler Text"] + sprachenListe.map(\.lang),
                                               { namen.firstIndex(of: e.neuSprache) ?? 0 }, { e.neuSprache = namen[$0] })
-        // Sprache: nur zur Ansicht (Kladde ordnet das Sprachmenü immer nach Buchstaben)
+        // Sprache: nur zur Ansicht (Griffel ordnet das Sprachmenü immer nach Buchstaben)
         b["IDC_LIST_ENABLEDLANG"] = .liste(sprachenListe.map(\.lang), { 0 })
         b["IDC_LIST_DISABLEDLANG"] = .liste([], { 0 })
         // Einrückungen
@@ -288,7 +288,7 @@ final class EinstellungsFenster: NSWindowController, NSWindowDelegate {
         return b
     }()
 
-    /// Mit Wert, aber nicht änderbar (Kladde kennt nur das eine).
+    /// Mit Wert, aber nicht änderbar (Griffel kennt nur das eine).
     static let immerAus: Set<String> = [
         "IDC_COMBO_LOCALIZATION", "IDC_COMBO_DIALOG_FONT_SIZE", "IDC_COMBO_DIALOG_FONT_NAME", "IDC_LIST_ENABLEDLANG",
         "IDC_LIST_DISABLEDLANG", "IDC_LIST_TABSETTNG", "IDD_BACKUPDIR_RESTORESESSION_PATH_EDIT",
@@ -340,8 +340,8 @@ final class EinstellungsFenster: NSWindowController, NSWindowDelegate {
     static let tipps: [String: String] = [
         "IDC_TABCOMPACTLABELLEN_TIP_STATIC": "Längere Namen werden nach so vielen Zeichen mit «…» gekürzt. 0 zeigt den ganzen Namen.",
         "IDC_BUTTON_VES_TIP": "Spalten für senkrechte Linien, durch Leerzeichen getrennt, etwa «80 120». Mit genau einer Spalte und «Hintergrundmodus» wird der Text dahinter eingefärbt.",
-        "IDD_ACCENT_TIP_STATIC": "Die Einfärbung der Symbole kennt Kladde nicht.",
-        "IDC_INSELECTION_THRESH_QUESTION_BUTTON": "Kladde setzt «In Auswahl» nicht selbst.",
-        "IDC_FILLFINDWHAT_THRESH_QUESTION_BUTTON": "Kladde setzt eine Auswahl bis 200 Zeichen ein.",
+        "IDD_ACCENT_TIP_STATIC": "Die Einfärbung der Symbole kennt Griffel nicht.",
+        "IDC_INSELECTION_THRESH_QUESTION_BUTTON": "Griffel setzt «In Auswahl» nicht selbst.",
+        "IDC_FILLFINDWHAT_THRESH_QUESTION_BUTTON": "Griffel setzt eine Auswahl bis 200 Zeichen ein.",
     ]
 }

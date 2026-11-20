@@ -83,8 +83,8 @@ final class Dateisuche {
         let frage = NSAlert()
         frage.messageText = "\(treffer) Treffer in \(dateien.count) \(dateien.count == 1 ? "Datei" : "Dateien") ersetzen?"
         frage.informativeText = """
-            Dateien, die in Kladde offen sind, ändert Kladde dort und speichert sie nicht. \
-            Alle anderen schreibt Kladde sofort auf die Platte; das lässt sich nicht rückgängig machen.
+            Dateien, die in Griffel offen sind, ändert Griffel dort und speichert sie nicht. \
+            Alle anderen schreibt Griffel sofort auf die Platte; das lässt sich nicht rückgängig machen.
             """
         frage.alertStyle = .warning
         frage.addButton(withTitle: "Ersetzen")

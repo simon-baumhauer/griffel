@@ -36,7 +36,7 @@ Ein Texteditor für den Mac nach dem Vorbild von Notepad++ – Scintilla und Lex
 Die Oberfläche sieht jetzt aus wie die von Notepad++; nur Fensterrahmen und Menüleiste oben sind vom Mac.
 
 - Ein Fenster für alle Dateien, Werkzeugleiste mit den Original-Symbolen, Tableiste mit Heften und Schliessen
-- Alle Menüs und Kürzel von Notepad++ mit den deutschen Texten; was Kladde noch nicht kann, steht ausgegraut
+- Alle Menüs und Kürzel von Notepad++ mit den deutschen Texten; was die App noch nicht kann, steht ausgegraut
 - Suchen-Dialog mit den Reitern Suchen, Ersetzen, In Dateien suchen und Hervorheben; Suchergebnis unten im Fenster; inkrementelle Suche
 - Seitenleisten: Dokumentenliste, Miniaturansicht, Ordner als Arbeitsbereich, Funktionsliste
 - Statusleiste wie in Notepad++
@@ -46,11 +46,13 @@ Die Tastenkürzel sind jetzt die von Notepad++ (⌘ statt Ctrl, ⌥ statt Alt); 
 
 ## Installieren
 
-1. Das DMG unten herunterladen und öffnen, **Kladde** in **Programme** ziehen.
-2. Kladde ist nicht bei Apple beglaubigt. Beim ersten Öffnen meldet macOS darum, die App könne nicht geprüft werden. Dann **Systemeinstellungen → Datenschutz & Sicherheit** öffnen und bei «Kladde» auf **Dennoch öffnen** klicken. Wer das Terminal vorzieht:
+1. Das DMG unten herunterladen und öffnen, **Griffel** in **Programme** ziehen.
+2. Griffel ist nicht bei Apple beglaubigt. Beim ersten Öffnen meldet macOS darum, die App könne nicht geprüft werden. Dann **Systemeinstellungen → Datenschutz & Sicherheit** öffnen und bei «Griffel» auf **Dennoch öffnen** klicken. Wer das Terminal vorzieht:
 
    ```
-   xattr -dr com.apple.quarantine /Applications/Kladde.app
+   xattr -dr com.apple.quarantine /Applications/Griffel.app
    ```
 
-Was Kladde kann, steht im [README](https://github.com/simon-baumhauer/kladde#readme).
+3. Wer Kladde schon hat: Griffel übernimmt Einstellungen, Sitzung und benutzerdefinierte Sprachen. Kladde.app danach in den Papierkorb legen.
+
+Was Griffel kann, steht im [README](https://github.com/simon-baumhauer/griffel#readme).

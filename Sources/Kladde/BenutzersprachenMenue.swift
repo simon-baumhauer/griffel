@@ -61,7 +61,7 @@ final class BenutzersprachenMenue: NSObject, NSMenuDelegate {
     }
 
     /// Kopiert UDL-Dateien (XML aus Notepad++, «Export…» oder userDefineLangs) in
-    /// den Ordner von Kladde und liest sie ein. Was sich nicht lesen lässt, bleibt draussen.
+    /// den Ordner von Griffel und liest sie ein. Was sich nicht lesen lässt, bleibt draussen.
     @objc func importiere() {
         let wahl = NSOpenPanel()
         wahl.allowedContentTypes = [.xml]
@@ -95,7 +95,7 @@ final class BenutzersprachenMenue: NSObject, NSMenuDelegate {
 
         let meldung = NSAlert()
         meldung.messageText = neu.isEmpty ? "Nichts importiert" : "Importiert: " + neu.joined(separator: ", ")
-        var info = neu.isEmpty ? "" : "Die Sprachen stehen unter «Sprache → Benutzerdefiniert»; Dateien mit ihren Endungen erkennt Kladde beim Öffnen."
+        var info = neu.isEmpty ? "" : "Die Sprachen stehen unter «Sprache → Benutzerdefiniert»; Dateien mit ihren Endungen erkennt Griffel beim Öffnen."
         if !fehler.isEmpty { info += (info.isEmpty ? "" : "\n\n") + fehler.joined(separator: "\n") }
         meldung.informativeText = info
         meldung.runModal()

@@ -1,16 +1,16 @@
-// Zeichnet das Icon von Kladde, Vorschlag A «Klammer-K» (Design-Canvas
-// «Kladde Logos», 20.11.2026): ein K aus Stamm und spitzer Klammer «<» in
-// Cremeweiss auf Tintenblau, dahinter die Einfügemarke in Bernstein.
+// Zeichnet das Icon von Griffel, Vorschlag D «Eselsohr» (Design-Canvas
+// «Kladde Logos», gewählt am 20.11.2026): ein cremeweisses Blatt mit
+// umgeknickter Ecke in Bernstein und fünf Codezeilen, auf Anthrazit.
 //
-//   swift scripts/icon.swift Ressourcen/Kladde.icns
+//   swift scripts/icon.swift Ressourcen/Griffel.icns
 //
-// Schreibt Kladde.icns (alle Grössen von 16 bis 1024 Pixel) und daneben
-// Kladde.png (1024 × 1024). Braucht nur macOS (CoreGraphics, iconutil).
+// Schreibt Griffel.icns (alle Grössen von 16 bis 1024 Pixel) und daneben
+// Griffel.png (1024 × 1024). Braucht nur macOS (CoreGraphics, iconutil).
 import AppKit
 import Foundation
 
-let ziel = URL(fileURLWithPath: CommandLine.arguments.count > 1 ? CommandLine.arguments[1] : "Kladde.icns")
-let arbeit = FileManager.default.temporaryDirectory.appendingPathComponent("kladde-icon-\(UUID().uuidString).iconset")
+let ziel = URL(fileURLWithPath: CommandLine.arguments.count > 1 ? CommandLine.arguments[1] : "Griffel.icns")
+let arbeit = FileManager.default.temporaryDirectory.appendingPathComponent("griffel-icon-\(UUID().uuidString).iconset")
 try FileManager.default.createDirectory(at: arbeit, withIntermediateDirectories: true)
 
 func farbe(_ rgb: UInt32, _ a: CGFloat = 1) -> CGColor {
@@ -19,9 +19,11 @@ func farbe(_ rgb: UInt32, _ a: CGFloat = 1) -> CGColor {
         blue: CGFloat(rgb & 0xFF) / 255, alpha: a)
 }
 
-let tinte: UInt32 = 0x17324D
-let creme: UInt32 = 0xF6F1E6
-let bernstein: UInt32 = 0xF2A93B
+let anthrazit: UInt32 = 0x2B2D33
+let papier: UInt32 = 0xF7F4EC
+let bernstein: UInt32 = 0xF2B035
+let blau: UInt32 = 0x3D6FE0
+let orange: UInt32 = 0xE0663D
 
 /// Die Form der macOS-Icons: ein Quadrat mit fliessenden («kontinuierlichen»)
 /// Ecken statt Viertelkreisen. Die Kurve beginnt 1,528 × r vor der Ecke; die
@@ -55,42 +57,67 @@ func flaeche(_ r: CGRect, radius: CGFloat) -> CGPath {
     return p
 }
 
-/// Das K als eine Fläche: Stamm, Arm (die obere Hälfte der Klammer) und Bein.
-/// Arm und Bein greifen ein Stück in ihre Nachbarn, damit an den Stössen keine
-/// Haarlinie stehen bleibt. Masse wie im Entwurf (Raster 1024, oben links 0/0).
-func kaa() -> CGPath {
+/// Das Blatt: oben rechts schräg abgeschnitten (dort sitzt das Eselsohr),
+/// die übrigen Ecken leicht gerundet. Masse wie im Entwurf (Raster 1024, oben links 0/0).
+func blatt() -> CGPath {
     let p = CGMutablePath()
-    p.addPath(CGPath(roundedRect: CGRect(x: 222, y: 276, width: 96, height: 472), cornerWidth: 8, cornerHeight: 8, transform: nil))
-    p.addLines(between: [CGPoint(x: 300, y: 540.4), CGPoint(x: 533, y: 276), CGPoint(x: 653, y: 276), CGPoint(x: 300, y: 676.4)])
-    p.closeSubpath()
-    p.addLines(between: [CGPoint(x: 377.2, y: 576.8), CGPoint(x: 439.7, y: 506.0), CGPoint(x: 653, y: 748), CGPoint(x: 528, y: 748)])
+    p.move(to: CGPoint(x: 300, y: 214))
+    p.addLine(to: CGPoint(x: 648, y: 214))
+    p.addLine(to: CGPoint(x: 760, y: 326))
+    p.addLine(to: CGPoint(x: 760, y: 790))
+    p.addQuadCurve(to: CGPoint(x: 740, y: 810), control: CGPoint(x: 760, y: 810))
+    p.addLine(to: CGPoint(x: 300, y: 810))
+    p.addQuadCurve(to: CGPoint(x: 280, y: 790), control: CGPoint(x: 280, y: 810))
+    p.addLine(to: CGPoint(x: 280, y: 234))
+    p.addQuadCurve(to: CGPoint(x: 300, y: 214), control: CGPoint(x: 280, y: 214))
     p.closeSubpath()
     return p
 }
 
-/// Zeichnet in einem Raster von 1024 × 1024 (Apples Vorlage: Inhalt 824 × 824 mit Rand 100).
-func zeichne(_ k: CGContext) {
+/// Die umgeknickte Ecke.
+func eselsohr() -> CGPath {
+    let p = CGMutablePath()
+    p.move(to: CGPoint(x: 648, y: 214))
+    p.addLine(to: CGPoint(x: 648, y: 306))
+    p.addQuadCurve(to: CGPoint(x: 668, y: 326), control: CGPoint(x: 648, y: 326))
+    p.addLine(to: CGPoint(x: 760, y: 326))
+    p.closeSubpath()
+    return p
+}
+
+/// Fünf Codezeilen, die mittleren eingerückt: x, y, Breite, Farbe (alle 30 hoch, rund).
+let zeilen: [(CGFloat, CGFloat, CGFloat, UInt32)] = [
+    (340, 392, 230, anthrazit), (340, 466, 320, blau), (390, 540, 200, anthrazit),
+    (390, 614, 270, orange), (340, 688, 150, anthrazit),
+]
+
+/// Zeichnet in einem Raster von 1024 × 1024 (Apples Vorlage: Inhalt 824 × 824 mit
+/// Rand 100). Der Schatten rechnet in Pixeln, nicht im Raster: darum der Massstab.
+func zeichne(_ k: CGContext, massstab m: CGFloat) {
     k.saveGState()
+    k.scaleBy(x: m, y: m)
     k.translateBy(x: 0, y: 1024)
     k.scaleBy(x: 1, y: -1)  // oben links ist 0/0
 
     // Fläche mit dem Schatten der macOS-Icons.
     let form = flaeche(CGRect(x: 100, y: 100, width: 824, height: 824), radius: 185)
-    k.setShadow(offset: CGSize(width: 0, height: -12), blur: 28, color: farbe(0x000000, 0.35))
+    k.setShadow(offset: CGSize(width: 0, height: -12 * m), blur: 28 * m, color: farbe(0x000000, 0.35))
     k.addPath(form)
-    k.setFillColor(farbe(tinte))
+    k.setFillColor(farbe(anthrazit))
     k.fillPath()
     k.setShadow(offset: .zero, blur: 0, color: nil)
 
-    // Das K, eine Fläche (Regel «nonzero» vereinigt Stamm, Arm und Bein).
-    k.addPath(kaa())
-    k.setFillColor(farbe(creme))
-    k.fillPath(using: .winding)
-
-    // Die Einfügemarke.
-    k.addPath(CGPath(roundedRect: CGRect(x: 683, y: 704, width: 120, height: 44), cornerWidth: 6, cornerHeight: 6, transform: nil))
+    k.addPath(blatt())
+    k.setFillColor(farbe(papier))
+    k.fillPath()
+    k.addPath(eselsohr())
     k.setFillColor(farbe(bernstein))
     k.fillPath()
+    for (x, y, breite, f) in zeilen {
+        k.addPath(CGPath(roundedRect: CGRect(x: x, y: y, width: breite, height: 30), cornerWidth: 15, cornerHeight: 15, transform: nil))
+        k.setFillColor(farbe(f))
+        k.fillPath()
+    }
     k.restoreGState()
 }
 
@@ -105,9 +132,8 @@ for (pixel, name) in groessen {
         hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0)!
     let kontext = NSGraphicsContext(bitmapImageRep: bild)!
     let k = kontext.cgContext
-    k.scaleBy(x: CGFloat(pixel) / 1024, y: CGFloat(pixel) / 1024)
     k.interpolationQuality = .high
-    zeichne(k)
+    zeichne(k, massstab: CGFloat(pixel) / 1024)
     try bild.representation(using: .png, properties: [:])!.write(to: arbeit.appendingPathComponent("\(name).png"))
 }
 

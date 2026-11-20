@@ -212,7 +212,7 @@ extension Hauptfenster {
 extension Dokument {
     private static var waechter: [ObjectIdentifier: DispatchSourceFileSystemObject] = [:]
 
-    /// Ansicht → Überwachen (tail -f): Ändert sich die Datei, lädt Kladde sie neu
+    /// Ansicht → Überwachen (tail -f): Ändert sich die Datei, lädt Griffel sie neu
     /// und springt ans Ende; solange ist das Dokument schreibgeschützt.
     var ueberwacht: Bool {
         get { Self.waechter[ObjectIdentifier(self)] != nil }

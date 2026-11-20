@@ -13,7 +13,7 @@ final class Dokument: NSDocument {
     var angeheftet = false
     /// Tab-Farbe 1–5 (Ansicht → Tabs → Farbe anwenden).
     var tabFarbe: Int?
-    /// «Schreibschutz in Notepad++»: nur in Kladde, die Datei bleibt, wie sie ist.
+    /// «Schreibschutz in Notepad++»: nur in Griffel, die Datei bleibt, wie sie ist.
     var schreibgeschuetzt = false {
         didSet {
             editor?.nachricht(SCI_SETREADONLY, schreibgeschuetzt ? 1 : 0)
@@ -241,7 +241,7 @@ final class Dokument: NSDocument {
     }
 }
 
-/// Kladde öffnet jede Datei als Text, was auch immer das System für ihren Typ hält.
+/// Griffel öffnet jede Datei als Text, was auch immer das System für ihren Typ hält.
 final class Dokumente: NSDocumentController {
     /// Die offenen Dokumente in der Reihenfolge ihrer Tabs.
     static func inTabfolge() -> [Dokument] { Hauptfenster.gemeinsam.tabs }
@@ -257,7 +257,7 @@ final class Dokumente: NSDocumentController {
     override var defaultType: String? { "public.plain-text" }
     override func typeForContents(of url: URL) throws -> String { "public.plain-text" }
 
-    /// Beim Beenden fragt Kladde nicht nach ungesicherten Dokumenten: Die
+    /// Beim Beenden fragt Griffel nicht nach ungesicherten Dokumenten: Die
     /// Sitzung hebt sie auf, und beim nächsten Start sind sie wieder da.
     /// (Beim Schliessen eines einzelnen Tabs fragt die App weiter.)
     override func reviewUnsavedDocuments(

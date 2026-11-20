@@ -1,0 +1,26 @@
+#!/bin/sh
+# Öffnet Dateien in Griffel. Fehlende Dateien legt der Befehl leer an.
+#   griffel datei.txt notizen.md
+#   griffel            (nur Griffel öffnen)
+set -e
+
+# Die Kennung stammt aus der Zeit, als Griffel «Kladde» hiess. Sie bleibt, damit
+# die Einstellungen erhalten bleiben.
+KENNUNG=io.github.simon-baumhauer.kladde
+
+if [ "$#" -eq 0 ]; then
+  exec open -b "$KENNUNG"
+fi
+
+case "$1" in
+  -h|--help)
+    echo "Aufruf: griffel [datei ...]"
+    echo "Öffnet die Dateien in Griffel; fehlende Dateien werden leer angelegt."
+    exit 0
+    ;;
+esac
+
+for datei in "$@"; do
+  [ -e "$datei" ] || : > "$datei"
+done
+exec open -b "$KENNUNG" -- "$@"

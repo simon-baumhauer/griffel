@@ -2,9 +2,9 @@ import AppKit
 
 /// Was beim Beenden offen war, ist beim nächsten Start wieder da — auch Tabs,
 /// die nie gesichert wurden, und ungesicherte Änderungen. Wie Notepad++ fragt
-/// Kladde darum beim Beenden nicht nach.
+/// Griffel darum beim Beenden nicht nach.
 ///
-/// Ablage: ~/Library/Application Support/Kladde/Sitzung/ mit sitzung.json und
+/// Ablage: ~/Library/Application Support/Griffel/Sitzung/ mit sitzung.json und
 /// je ungesichertem Dokument einer Datei «<id>.sicherung» (der Text als UTF-8).
 /// Die Dateien der Dokumente selbst fasst die Sitzung nie an.
 enum Sitzung {
@@ -27,8 +27,7 @@ enum Sitzung {
         if let pfad = UserDefaults.standard.string(forKey: "KladdeSitzung") {
             return URL(fileURLWithPath: pfad, isDirectory: true)
         }
-        let ablage = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-        return ablage.appendingPathComponent("Kladde/Sitzung", isDirectory: true)
+        return Ablage.ordner.appendingPathComponent("Sitzung", isDirectory: true)
     }()
 
     private static var liste: URL { ordner.appendingPathComponent("sitzung.json") }
@@ -94,7 +93,7 @@ enum Sitzung {
     static func sichereInDatei() {
         guard let fenster = Hauptfenster.gemeinsam.window else { return }
         let wahl = NSSavePanel()
-        wahl.nameFieldStringValue = "Sitzung.kladde-sitzung"
+        wahl.nameFieldStringValue = "Sitzung.griffel-sitzung"
         wahl.beginSheetModal(for: fenster) { antwort in
             guard antwort == .OK, let ziel = wahl.url else { return }
             let tabs = Hauptfenster.gemeinsam.tabs

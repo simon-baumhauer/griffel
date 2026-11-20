@@ -1,12 +1,12 @@
 #!/bin/zsh
-# Baut build/Kladde.app. Mit «--start» öffnet sich die App danach, mit
+# Baut build/Griffel.app. Mit «--start» öffnet sich die App danach, mit
 # «--universell» entsteht sie für Apple Silicon und Intel (für die Weitergabe).
 # Den Editor-Kern baut scripts/extern-bauen.sh beim ersten Mal von selbst.
 set -euo pipefail
 
 WURZEL=${0:A:h:h}
 KERN=$WURZEL/build/extern/out
-APP=$WURZEL/build/Kladde.app
+APP=$WURZEL/build/Griffel.app
 
 [[ -d $KERN/Scintilla.framework && -f $KERN/liblexilla.dylib ]] || $WURZEL/scripts/extern-bauen.sh
 
@@ -40,14 +40,15 @@ rm -f $protokoll
 
 rm -rf $APP
 mkdir -p $APP/Contents/MacOS $APP/Contents/Frameworks $APP/Contents/Resources
-cp $programm $APP/Contents/MacOS/
+# Das Ziel in Package.swift heisst noch «Kladde» (der alte Name der App).
+cp $programm $APP/Contents/MacOS/Griffel
 cp Ressourcen/Info.plist $APP/Contents/
 # Version aus dem letzten Tag (v1.2.3), Build-Nummer aus der Zahl der Commits.
 version=$( { git describe --tags --abbrev=0 2>/dev/null || true; } | sed 's/^v//')
 /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString ${version:-0.0.0}" $APP/Contents/Info.plist
 /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $(git rev-list --count HEAD 2>/dev/null || echo 1)" $APP/Contents/Info.plist
-cp Ressourcen/kladde $APP/Contents/Resources/kladde
-cp Ressourcen/Kladde.icns $APP/Contents/Resources/Kladde.icns
+cp Ressourcen/griffel $APP/Contents/Resources/griffel
+cp Ressourcen/Griffel.icns $APP/Contents/Resources/Griffel.icns
 cp -R $KERN/Scintilla.framework $APP/Contents/Frameworks/
 cp $KERN/liblexilla.dylib $APP/Contents/Frameworks/
 cp LICENSE $APP/Contents/Resources/LICENSE-GPL.txt
@@ -58,7 +59,7 @@ rm -rf $WURZEL/build/sprachdaten
 python3 -I scripts/sprachdaten.py extern/notepad-plus-plus $WURZEL/build/sprachdaten
 cp -R $WURZEL/build/sprachdaten $APP/Contents/Resources/Sprachdaten
 
-# Symbole von Notepad++ (Werkzeugleiste, Tabs, Seitenleisten), GPL wie Kladde.
+# Symbole von Notepad++ (Werkzeugleiste, Tabs, Seitenleisten), GPL wie Griffel.
 mkdir -p $APP/Contents/Resources/Symbole
 for satz in standard light dark; do
   cp -R extern/notepad-plus-plus/PowerEditor/src/icons/$satz $APP/Contents/Resources/Symbole/
