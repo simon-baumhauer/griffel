@@ -1,5 +1,12 @@
 Ein Texteditor für den Mac nach dem Vorbild von Notepad++ – Scintilla und Lexilla wie dort, die Oberfläche in Swift nachgebaut. Für Apple Silicon und Intel, ab macOS 13.
 
+## Neu in 1.2.0
+
+- Hinweise beim Überfahren der Werkzeugleiste: Name, Kürzel und in einem Satz, was der Befehl tut; dieselben Sätze als Tooltip in den Menüs
+- Aufklappmenüs ▾ an Öffnen (zuletzt benutzte Dateien), Speichern, Schließen, Drucken, Suchen, Vergrößern, Alle Zeichen, Funktionsliste und Makro abspielen (gesicherte Makros)
+- Rechtsklick auf die Werkzeugleiste wählt die Symbole: klassisch, Fluent oder Fluent gefüllt
+- Menütexte nennen «⌘ + Mausrad» statt «STRG + Mausrad»
+
 ## Neu in 1.1.0
 
 Die Oberfläche sieht jetzt aus wie die von Notepad++; nur Fensterrahmen und Menüleiste oben sind vom Mac.
