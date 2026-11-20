@@ -1,4 +1,4 @@
-<img src="Ressourcen/Kladde.png" width="128" alt="Icon von Kladde: ein grünes Heft mit farbigen Codezeilen">
+<img src="Ressourcen/Kladde.png" width="128" alt="Icon von Kladde: ein cremeweisses K aus Stamm und spitzer Klammer auf Tintenblau, dahinter eine gelbe Einfügemarke">
 
 # Kladde
 

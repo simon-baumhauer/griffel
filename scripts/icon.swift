@@ -1,9 +1,11 @@
-// Zeichnet das Icon von Kladde: ein grünes Schreibheft (eine Kladde) mit einer
-// Seite, auf der farbige Striche wie eingefärbte Codezeilen stehen.
+// Zeichnet das Icon von Kladde, Vorschlag A «Klammer-K» (Design-Canvas
+// «Kladde Logos», 20.11.2026): ein K aus Stamm und spitzer Klammer «<» in
+// Cremeweiss auf Tintenblau, dahinter die Einfügemarke in Bernstein.
 //
 //   swift scripts/icon.swift Ressourcen/Kladde.icns
 //
-// Braucht nur macOS (CoreGraphics, iconutil).
+// Schreibt Kladde.icns (alle Grössen von 16 bis 1024 Pixel) und daneben
+// Kladde.png (1024 × 1024). Braucht nur macOS (CoreGraphics, iconutil).
 import AppKit
 import Foundation
 
@@ -17,82 +19,78 @@ func farbe(_ rgb: UInt32, _ a: CGFloat = 1) -> CGColor {
         blue: CGFloat(rgb & 0xFF) / 255, alpha: a)
 }
 
+let tinte: UInt32 = 0x17324D
+let creme: UInt32 = 0xF6F1E6
+let bernstein: UInt32 = 0xF2A93B
+
+/// Die Form der macOS-Icons: ein Quadrat mit fliessenden («kontinuierlichen»)
+/// Ecken statt Viertelkreisen. Die Kurve beginnt 1,528 × r vor der Ecke; die
+/// Werte sind die übliche Nachbildung der Ecken von Apple.
+func flaeche(_ r: CGRect, radius: CGFloat) -> CGPath {
+    let p = CGMutablePath()
+    let a = 1.52866483 * radius, b = 1.08849296 * radius, c = 0.86840694 * radius
+    let d = 0.63149399 * radius, e = 0.07491100 * radius, f = 0.37282383 * radius, g = 0.16905899 * radius
+    p.move(to: CGPoint(x: r.minX + a, y: r.minY))
+    // oben rechts
+    p.addLine(to: CGPoint(x: r.maxX - a, y: r.minY))
+    p.addCurve(to: CGPoint(x: r.maxX - d, y: r.minY + e), control1: CGPoint(x: r.maxX - b, y: r.minY), control2: CGPoint(x: r.maxX - c, y: r.minY))
+    p.addCurve(to: CGPoint(x: r.maxX - e, y: r.minY + d), control1: CGPoint(x: r.maxX - f, y: r.minY + g), control2: CGPoint(x: r.maxX - g, y: r.minY + f))
+    p.addCurve(to: CGPoint(x: r.maxX, y: r.minY + a), control1: CGPoint(x: r.maxX, y: r.minY + c), control2: CGPoint(x: r.maxX, y: r.minY + b))
+    // unten rechts
+    p.addLine(to: CGPoint(x: r.maxX, y: r.maxY - a))
+    p.addCurve(to: CGPoint(x: r.maxX - e, y: r.maxY - d), control1: CGPoint(x: r.maxX, y: r.maxY - b), control2: CGPoint(x: r.maxX, y: r.maxY - c))
+    p.addCurve(to: CGPoint(x: r.maxX - d, y: r.maxY - e), control1: CGPoint(x: r.maxX - g, y: r.maxY - f), control2: CGPoint(x: r.maxX - f, y: r.maxY - g))
+    p.addCurve(to: CGPoint(x: r.maxX - a, y: r.maxY), control1: CGPoint(x: r.maxX - c, y: r.maxY), control2: CGPoint(x: r.maxX - b, y: r.maxY))
+    // unten links
+    p.addLine(to: CGPoint(x: r.minX + a, y: r.maxY))
+    p.addCurve(to: CGPoint(x: r.minX + d, y: r.maxY - e), control1: CGPoint(x: r.minX + b, y: r.maxY), control2: CGPoint(x: r.minX + c, y: r.maxY))
+    p.addCurve(to: CGPoint(x: r.minX + e, y: r.maxY - d), control1: CGPoint(x: r.minX + f, y: r.maxY - g), control2: CGPoint(x: r.minX + g, y: r.maxY - f))
+    p.addCurve(to: CGPoint(x: r.minX, y: r.maxY - a), control1: CGPoint(x: r.minX, y: r.maxY - c), control2: CGPoint(x: r.minX, y: r.maxY - b))
+    // oben links
+    p.addLine(to: CGPoint(x: r.minX, y: r.minY + a))
+    p.addCurve(to: CGPoint(x: r.minX + e, y: r.minY + d), control1: CGPoint(x: r.minX, y: r.minY + b), control2: CGPoint(x: r.minX, y: r.minY + c))
+    p.addCurve(to: CGPoint(x: r.minX + d, y: r.minY + e), control1: CGPoint(x: r.minX + g, y: r.minY + f), control2: CGPoint(x: r.minX + f, y: r.minY + g))
+    p.addCurve(to: CGPoint(x: r.minX + a, y: r.minY), control1: CGPoint(x: r.minX + c, y: r.minY), control2: CGPoint(x: r.minX + b, y: r.minY))
+    p.closeSubpath()
+    return p
+}
+
+/// Das K als eine Fläche: Stamm, Arm (die obere Hälfte der Klammer) und Bein.
+/// Arm und Bein greifen ein Stück in ihre Nachbarn, damit an den Stössen keine
+/// Haarlinie stehen bleibt. Masse wie im Entwurf (Raster 1024, oben links 0/0).
+func kaa() -> CGPath {
+    let p = CGMutablePath()
+    p.addPath(CGPath(roundedRect: CGRect(x: 222, y: 276, width: 96, height: 472), cornerWidth: 8, cornerHeight: 8, transform: nil))
+    p.addLines(between: [CGPoint(x: 300, y: 540.4), CGPoint(x: 533, y: 276), CGPoint(x: 653, y: 276), CGPoint(x: 300, y: 676.4)])
+    p.closeSubpath()
+    p.addLines(between: [CGPoint(x: 377.2, y: 576.8), CGPoint(x: 439.7, y: 506.0), CGPoint(x: 653, y: 748), CGPoint(x: 528, y: 748)])
+    p.closeSubpath()
+    return p
+}
+
 /// Zeichnet in einem Raster von 1024 × 1024 (Apples Vorlage: Inhalt 824 × 824 mit Rand 100).
 func zeichne(_ k: CGContext) {
     k.saveGState()
     k.translateBy(x: 0, y: 1024)
     k.scaleBy(x: 1, y: -1)  // oben links ist 0/0
 
-    // Schatten unter dem Heft.
-    let heft = CGRect(x: 100, y: 100, width: 824, height: 824)
-    let form = CGPath(roundedRect: heft, cornerWidth: 185, cornerHeight: 185, transform: nil)
+    // Fläche mit dem Schatten der macOS-Icons.
+    let form = flaeche(CGRect(x: 100, y: 100, width: 824, height: 824), radius: 185)
     k.setShadow(offset: CGSize(width: 0, height: -12), blur: 28, color: farbe(0x000000, 0.35))
     k.addPath(form)
-    k.setFillColor(farbe(0x245C43))
+    k.setFillColor(farbe(tinte))
     k.fillPath()
     k.setShadow(offset: .zero, blur: 0, color: nil)
 
-    // Einband mit leichtem Verlauf.
-    k.saveGState()
-    k.addPath(form)
-    k.clip()
-    let verlauf = CGGradient(
-        colorsSpace: CGColorSpace(name: CGColorSpace.sRGB), colors: [farbe(0x2F7A57), farbe(0x1C4A35)] as CFArray,
-        locations: [0, 1])!
-    k.drawLinearGradient(verlauf, start: CGPoint(x: 0, y: 100), end: CGPoint(x: 0, y: 924), options: [])
+    // Das K, eine Fläche (Regel «nonzero» vereinigt Stamm, Arm und Bein).
+    k.addPath(kaa())
+    k.setFillColor(farbe(creme))
+    k.fillPath(using: .winding)
 
-    // Rücken links mit Heftung.
-    k.setFillColor(farbe(0x163B2A))
-    k.fill(CGRect(x: 100, y: 100, width: 120, height: 824))
-    k.setFillColor(farbe(0xE8D9A8))
-    for y in stride(from: 250, through: 700, by: 150) {
-        k.fill(CGRect(x: 150, y: CGFloat(y), width: 20, height: 70))
-    }
-    k.restoreGState()
-
-    // Die Seite.
-    let seite = CGRect(x: 268, y: 178, width: 580, height: 668)
-    k.setShadow(offset: CGSize(width: 0, height: -6), blur: 14, color: farbe(0x000000, 0.3))
-    k.addPath(CGPath(roundedRect: seite, cornerWidth: 34, cornerHeight: 34, transform: nil))
-    k.setFillColor(farbe(0xFBF7EC))
+    // Die Einfügemarke.
+    k.addPath(CGPath(roundedRect: CGRect(x: 683, y: 704, width: 120, height: 44), cornerWidth: 6, cornerHeight: 6, transform: nil))
+    k.setFillColor(farbe(bernstein))
     k.fillPath()
-    k.setShadow(offset: .zero, blur: 0, color: nil)
-
-    // Linien und roter Rand wie im Schulheft.
-    k.setStrokeColor(farbe(0xA9C4E0))
-    k.setLineWidth(4)
-    let zeilen = stride(from: 270, through: 790, by: 65).map { CGFloat($0) }
-    for y in zeilen {
-        k.move(to: CGPoint(x: seite.minX + 26, y: y + 26))
-        k.addLine(to: CGPoint(x: seite.maxX - 26, y: y + 26))
-    }
-    k.strokePath()
-    k.setStrokeColor(farbe(0xE07A6B))
-    k.setLineWidth(5)
-    k.move(to: CGPoint(x: seite.minX + 92, y: seite.minY + 22))
-    k.addLine(to: CGPoint(x: seite.minX + 92, y: seite.maxY - 22))
-    k.strokePath()
-
-    // Codezeilen: Einrückung und Farben wie eingefärbter Quelltext.
-    let code: [(einzug: CGFloat, teile: [(breite: CGFloat, farbe: UInt32)])] = [
-        (0, [(110, 0x2D6CDF), (150, 0x1F1F1F)]),
-        (40, [(90, 0x2D6CDF), (190, 0xD9822B)]),
-        (40, [(70, 0x8E44AD), (120, 0x1F1F1F), (60, 0x2E9E5B)]),
-        (80, [(210, 0x2E9E5B)]),
-        (40, [(60, 0x1F1F1F)]),
-        (0, [(40, 0x1F1F1F)]),
-        (0, [(130, 0x7F8C8D), (120, 0x7F8C8D)]),
-    ]
-    for (i, zeile) in code.enumerated() {
-        var x = seite.minX + 118 + zeile.einzug
-        let y = zeilen[i] + 2
-        for teil in zeile.teile {
-            k.addPath(CGPath(roundedRect: CGRect(x: x, y: y, width: teil.breite, height: 20), cornerWidth: 10, cornerHeight: 10, transform: nil))
-            k.setFillColor(farbe(teil.farbe))
-            k.fillPath()
-            x += teil.breite + 18
-        }
-    }
     k.restoreGState()
 }
 
@@ -118,9 +116,9 @@ prozess.executableURL = URL(fileURLWithPath: "/usr/bin/iconutil")
 prozess.arguments = ["-c", "icns", arbeit.path, "-o", ziel.path]
 try prozess.run()
 prozess.waitUntilExit()
-try? FileManager.default.copyItem(
-    at: arbeit.appendingPathComponent("icon_512x512@2x.png"),
-    to: ziel.deletingPathExtension().appendingPathExtension("png"))
+let png = ziel.deletingPathExtension().appendingPathExtension("png")
+try? FileManager.default.removeItem(at: png)
+try? FileManager.default.copyItem(at: arbeit.appendingPathComponent("icon_512x512@2x.png"), to: png)
 try? FileManager.default.removeItem(at: arbeit)
 print(prozess.terminationStatus == 0 ? "fertig: \(ziel.path)" : "iconutil ist gescheitert")
 exit(prozess.terminationStatus)
