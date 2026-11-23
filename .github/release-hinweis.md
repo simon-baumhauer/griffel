@@ -55,12 +55,7 @@ Die Tastenkürzel sind jetzt die von Notepad++ (⌘ statt Ctrl, ⌥ statt Alt); 
 ## Installieren
 
 1. Das DMG unten herunterladen und öffnen, **Griffel** in **Programme** ziehen.
-2. Griffel ist nicht bei Apple beglaubigt. Beim ersten Öffnen meldet macOS darum, die App könne nicht geprüft werden. Dann **Systemeinstellungen → Datenschutz & Sicherheit** öffnen und bei «Griffel» auf **Dennoch öffnen** klicken. Wer das Terminal vorzieht:
-
-   ```
-   xattr -dr com.apple.quarantine /Applications/Griffel.app
-   ```
-
+2. Griffel ist signiert und von Apple beglaubigt. Beim ersten Öffnen fragt macOS nur, ob die App aus dem Internet geöffnet werden soll.
 3. Wer Kladde schon hat: Griffel übernimmt Einstellungen, Sitzung und benutzerdefinierte Sprachen. Kladde.app danach in den Papierkorb legen.
 
 Was Griffel kann, steht im [README](https://github.com/simon-baumhauer/griffel#readme).

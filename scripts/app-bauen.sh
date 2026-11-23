@@ -42,6 +42,23 @@ rm -rf $APP
 mkdir -p $APP/Contents/MacOS $APP/Contents/Frameworks $APP/Contents/Resources
 # Das Ziel in Package.swift heisst noch «Kladde» (der alte Name der App).
 cp $programm $APP/Contents/MacOS/Griffel
+# swift build trägt auch den Ordner der Swift-Bibliotheken von Xcode als Suchpfad
+# ein. Auf anderen Macs fehlt er, und Apple lehnt die Beglaubigung ab, solange ein
+# Suchpfad aus dem Bündel hinaus auf einen leeren Ort zeigt (syspolicy_check:
+# «Bad Load Command»). Griffel braucht nur /usr/lib/swift und die eigenen Frameworks.
+otool -l $APP/Contents/MacOS/Griffel | sed -n 's/^ *path \(.*\) (offset [0-9]*)$/\1/p' |
+  while IFS= read -r pfad; do
+    case $pfad in
+      /usr/lib/swift|@*) ;;
+      /*)
+        # Die Warnung, dass die Signatur ungültig wird, stimmt; signiert wird unten.
+        if ! meldung=$(install_name_tool -delete_rpath "$pfad" $APP/Contents/MacOS/Griffel 2>&1); then
+          echo "$meldung" >&2
+          exit 1
+        fi
+        ;;
+    esac
+  done
 cp Ressourcen/Info.plist $APP/Contents/
 # Version aus dem letzten Tag (v1.2.3), Build-Nummer aus der Zahl der Commits.
 version=$( { git describe --tags --abbrev=0 2>/dev/null || true; } | sed 's/^v//')
@@ -66,7 +83,7 @@ for satz in standard light dark; do
 done
 
 # Lokale Signatur ohne Entwicklerkonto. Für die Weitergabe signiert
-# scripts/dmg-bauen.sh mit «Developer ID», wenn es eine gibt.
+# scripts/dmg-bauen.sh mit der «Developer ID» und lässt die App beglaubigen.
 codesign --force --deep -s - $APP 2>/dev/null
 
 echo "fertig: $APP"

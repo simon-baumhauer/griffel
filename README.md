@@ -130,10 +130,16 @@ nach `extern/notepad-plus-plus` und baut Scintilla und Lexilla (einige Minuten).
 ```
 
 Das Ergebnis ist `build/Griffel.app`. Mit `--universell` entsteht die App für Apple Silicon und Intel.
-Das DMG baut `./scripts/dmg-bauen.sh`; mit `GRIFFEL_IDENTITAET` (eine «Developer ID») und
-`GRIFFEL_NOTAR_PROFIL` (ein Profil von `xcrun notarytool store-credentials`) signiert und beglaubigt es
-die App. Ein Tag `v…` baut das DMG auf GitHub und legt es an ein Release. Das Icon zeichnet
-`swift scripts/icon.swift Ressourcen/Griffel.icns`.
+Das DMG baut `./scripts/dmg-bauen.sh`. Mit `GRIFFEL_IDENTITAET` (ein Zertifikat «Developer ID
+Application») und `GRIFFEL_NOTAR_PROFIL=griffel` signiert es die App, lässt App und DMG von Apple
+beglaubigen und prüft das fertige DMG so, wie macOS es beim ersten Öffnen prüft. Mit `--beglaubigen`
+bricht es ab, wenn dafür etwas fehlt. Das Icon zeichnet `swift scripts/icon.swift Ressourcen/Griffel.icns`.
+
+Ein Tag `v…` baut das DMG auf GitHub, signiert und beglaubigt es und legt es an ein Release. Fehlen die
+Secrets dafür, bricht der Lauf ab: Ein DMG, das macOS mit «“Griffel” Not Opened» abweist, geht nicht
+mehr hinaus. Zertifikat und Schlüssel legt `./scripts/signatur-einrichten.sh` einmal als Secrets an;
+was vorher im Apple-Konto zu tun ist, steht oben im Skript. Von Hand gestartet («Run workflow»), läuft
+«Veröffentlichen» zur Probe durch, ohne ein Release anzulegen.
 
 ## Prüfen
 

@@ -1,10 +1,18 @@
-# Ein Tag v1.2.3 baut das DMG (Apple Silicon und Intel) und legt es an ein
-# Release auf GitHub. Signiert ist die App nur lokal; siehe README «Installieren».
+# Ein Tag v1.2.3 baut das DMG (Apple Silicon und Intel), signiert die App mit der
+# «Developer ID», lässt App und DMG von Apple beglaubigen und legt das DMG an ein
+# Release auf GitHub. Fehlen die Secrets dafür, bricht der Lauf gleich am Anfang ab:
+# Ein unbeglaubigtes DMG meldet beim ersten Öffnen «“Griffel” Not Opened», und so
+# eines geht nicht mehr hinaus. Die Secrets legt scripts/signatur-einrichten.sh an.
+#
+# Von Hand gestartet («Run workflow») läuft dasselbe zur Probe: bauen, signieren,
+# beglaubigen und prüfen; das DMG hängt dann sieben Tage am Lauf, ein Release
+# entsteht nicht.
 name: Veröffentlichen
 
 on:
   push:
     tags: ["v*"]
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -13,6 +21,25 @@ jobs:
   veroeffentlichen:
     runs-on: macos-15
     steps:
+      - name: Secrets für Signatur und Beglaubigung vorhanden?
+        env:
+          ZERTIFIKAT: ${{ secrets.GRIFFEL_ZERTIFIKAT }}
+          ZERTIFIKAT_PASSWORT: ${{ secrets.GRIFFEL_ZERTIFIKAT_PASSWORT }}
+          NOTAR_SCHLUESSEL: ${{ secrets.GRIFFEL_NOTAR_SCHLUESSEL }}
+          NOTAR_SCHLUESSEL_ID: ${{ secrets.GRIFFEL_NOTAR_SCHLUESSEL_ID }}
+          NOTAR_AUSSTELLER: ${{ secrets.GRIFFEL_NOTAR_AUSSTELLER }}
+        run: |
+          fehlt=""
+          [ -n "$ZERTIFIKAT" ] || fehlt="$fehlt GRIFFEL_ZERTIFIKAT"
+          [ -n "$ZERTIFIKAT_PASSWORT" ] || fehlt="$fehlt GRIFFEL_ZERTIFIKAT_PASSWORT"
+          [ -n "$NOTAR_SCHLUESSEL" ] || fehlt="$fehlt GRIFFEL_NOTAR_SCHLUESSEL"
+          [ -n "$NOTAR_SCHLUESSEL_ID" ] || fehlt="$fehlt GRIFFEL_NOTAR_SCHLUESSEL_ID"
+          [ -n "$NOTAR_AUSSTELLER" ] || fehlt="$fehlt GRIFFEL_NOTAR_AUSSTELLER"
+          if [ -n "$fehlt" ]; then
+            echo "::error title=Signatur fehlt::Ohne Developer ID und Beglaubigung meldet macOS beim Öffnen «Griffel» Not Opened. Es fehlen die Secrets$fehlt; anlegen mit scripts/signatur-einrichten.sh."
+            exit 1
+          fi
+
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0  # Version und Build-Nummer kommen aus Tags und Commits
@@ -23,13 +50,72 @@ jobs:
       - name: Tests
         run: swift test
 
-      - name: DMG bauen
-        run: ./scripts/dmg-bauen.sh
+      # Ein eigener Schlüsselbund nur für diesen Lauf, mit dem Zertifikat darin.
+      - name: Zertifikat und Schlüssel bereitlegen
+        env:
+          ZERTIFIKAT: ${{ secrets.GRIFFEL_ZERTIFIKAT }}
+          ZERTIFIKAT_PASSWORT: ${{ secrets.GRIFFEL_ZERTIFIKAT_PASSWORT }}
+          NOTAR_SCHLUESSEL: ${{ secrets.GRIFFEL_NOTAR_SCHLUESSEL }}
+        run: |
+          schluesselbund="$RUNNER_TEMP/griffel.keychain-db"
+          kennwort=$(openssl rand -hex 24)
+          security create-keychain -p "$kennwort" "$schluesselbund"
+          security set-keychain-settings -lut 21600 "$schluesselbund"
+          security unlock-keychain -p "$kennwort" "$schluesselbund"
+          printf '%s' "$ZERTIFIKAT" | base64 --decode > "$RUNNER_TEMP/griffel.p12"
+          security import "$RUNNER_TEMP/griffel.p12" -k "$schluesselbund" -f pkcs12 \
+            -P "$ZERTIFIKAT_PASSWORT" -T /usr/bin/codesign
+          rm -f "$RUNNER_TEMP/griffel.p12"
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$kennwort" \
+            "$schluesselbund" > /dev/null
+          # codesign und stapler suchen im Suchpfad; der eigene Schlüsselbund kommt vorne dazu.
+          bisher=()
+          while IFS= read -r eintrag; do
+            eintrag="${eintrag#"${eintrag%%[![:space:]]*}"}"
+            eintrag="${eintrag#\"}"
+            bisher+=("${eintrag%\"}")
+          done < <(security list-keychains -d user)
+          security list-keychains -d user -s "$schluesselbund" "${bisher[@]}"
+          identitaet=$(security find-identity -v -p codesigning "$schluesselbund" |
+            sed -n 's/^.*"\(Developer ID Application: .*\)"$/\1/p' | head -n 1)
+          if [ -z "$identitaet" ]; then
+            echo "::error title=Kein Zertifikat::GRIFFEL_ZERTIFIKAT enthält kein gültiges Zertifikat «Developer ID Application»."
+            exit 1
+          fi
+          printf '%s\n' "$NOTAR_SCHLUESSEL" > "$RUNNER_TEMP/notar.p8"
+          {
+            echo "GRIFFEL_IDENTITAET=$identitaet"
+            echo "GRIFFEL_SCHLUESSELBUND=$schluesselbund"
+            echo "GRIFFEL_NOTAR_SCHLUESSEL=$RUNNER_TEMP/notar.p8"
+          } >> "$GITHUB_ENV"
+
+      - name: DMG bauen, signieren, beglaubigen und prüfen
+        env:
+          GRIFFEL_NOTAR_SCHLUESSEL_ID: ${{ secrets.GRIFFEL_NOTAR_SCHLUESSEL_ID }}
+          GRIFFEL_NOTAR_AUSSTELLER: ${{ secrets.GRIFFEL_NOTAR_AUSSTELLER }}
+        run: ./scripts/dmg-bauen.sh --beglaubigen
 
       - name: Release anlegen
+        if: github.event_name == 'push'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release create "$GITHUB_REF_NAME" build/Griffel-*.dmg \
             --title "Griffel ${GITHUB_REF_NAME#v}" \
             --notes-file .github/release-hinweis.md
+
+      - name: DMG der Probe an den Lauf hängen
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v4
+        with:
+          name: Griffel-Probe
+          path: build/Griffel-*.dmg
+          retention-days: 7
+
+      - name: Schlüsselbund und Schlüssel löschen
+        if: always()
+        run: |
+          if [ -n "${GRIFFEL_SCHLUESSELBUND:-}" ]; then
+            security delete-keychain "$GRIFFEL_SCHLUESSELBUND" || true
+          fi
+          rm -f "$RUNNER_TEMP/notar.p8" "$RUNNER_TEMP/griffel.p12"
