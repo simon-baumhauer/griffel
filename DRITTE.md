@@ -12,7 +12,8 @@ holt den Quellcode von Notepad++ beim ersten Bau auf einen festen Stand.
 | `Notepad_plus.rc`, `Parameters.cpp`, `FindReplaceDlg.rc`, `preference.rc`, die übrigen `.rc`-Dialoge, `installer/nativeLang/german.xml`, `tabContextMenu_example.xml` | Don Ho und die Mitwirkenden von Notepad++, deutsche Übersetzung von deren Übersetzerinnen und Übersetzern | GPL v3 | Aufbau und Texte der Menüs, Tastenkürzel, Layout des Suchen-Dialogs |
 
 Griffel selbst steht unter der GPL v3 (`LICENSE`). Code von Notepad++ übernimmt Griffel nicht; die
-Oberfläche ist neu geschrieben und liest Aufbau, Texte und Symbole beim Bauen aus den Dateien oben. «Notepad++» ist der Name des Vorbilds, nicht dieses Programms.
+Oberfläche ist neu geschrieben und liest Aufbau, Texte und Symbole beim Bauen aus den Dateien oben.
+«Notepad++» ist der Name des Vorbilds, nicht dieses Programms.
 
 ## Lizenz von Scintilla und Lexilla
 

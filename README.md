@@ -2,22 +2,26 @@
 
 # Griffel
 
-Ein Texteditor für den Mac nach dem Vorbild von Notepad++. Bis Version 1.4 hiess er «Kladde».
+Ein Texteditor für den Mac nach dem Vorbild von Notepad++: derselbe Editor-Kern, dieselben Sprachen
+und Farbschemata, dieselben Menüs und Kürzel. Für Apple Silicon und Intel, ab macOS 13.
 
-Der Editor-Kern ist derselbe wie in Notepad++: Scintilla (Bearbeiten, Darstellung) und Lexilla
-(Syntaxfarben), gebaut aus dem Quellcode von Notepad++. Sprachen, Farbschemata, Funktionslisten und
-Autovervollständigung kommen ebenfalls von dort. Die Oberfläche ist in Swift mit AppKit nachgebaut
-und sieht aus wie die von Notepad++: ein Fenster mit der Werkzeugleiste und ihren Original-Symbolen,
-die Tableiste mit Heften und Schliessen, die Menüs mit allen Befehlen und den Texten der deutschen
-Übersetzung (nicht umgesetzte stehen ausgegraut), der Suchen-Dialog mit seinen vier Reitern, die
-Dialoge Gehe zu, Ausführen, Block-Editor, Makro mehrfach, Hashwert und Speichern im Windows-Stil von
-Notepad++ (Aufbau aus dessen .rc-Dateien), die Seitenleisten mit Reitern unten und die Statusleiste.
-«Optionen» hat alle 23 Seiten von Notepad++; was Griffel einstellen kann, wirkt sofort (Tableiste,
-Symbolleiste, aktuelle Zeile, Cursor, Zeilenumbruch, Faltungsstil, senkrechte Kanten, Änderungshistorie,
-neue Dokumente, Einrückung, Hervorhebung, Autovervollständigung, Sitzung …), der Rest steht ausgegraut. Nur Fensterrahmen und Menüleiste oben sind vom Mac. Für Apple
-Silicon und Intel, ab macOS 13.
+```bash
+brew install --cask simon-baumhauer/tap/griffel
+```
+
+Ohne Homebrew das DMG unter [Releases](https://github.com/simon-baumhauer/griffel/releases) laden;
+mehr unter [Installieren](#installieren). Bis Version 1.4 hiess Griffel «Kladde».
 
 ![Griffel mit einer Python-Datei, links die Dokumentenliste, rechts die Funktionsliste mit Klassen und Funktionen](docs/bilder/griffel.png)
+
+Scintilla (Bearbeiten, Darstellung) und Lexilla (Syntaxfarben) sind aus dem Quellcode von Notepad++
+gebaut, und auch Sprachen, Farbschemata, Funktionslisten und Autovervollständigung kommen von dort. Die
+Oberfläche ist in Swift mit AppKit nachgebaut und sieht aus wie die von Notepad++: die Werkzeugleiste
+mit den Original-Symbolen, die Tableiste, alle Menüs mit den Texten der deutschen Übersetzung, der
+Suchen-Dialog mit seinen vier Reitern, die Dialoge Gehe zu, Ausführen, Block-Editor, Makro mehrfach,
+Hashwert und Speichern im Windows-Stil (Aufbau aus den .rc-Dateien von Notepad++), die Seitenleisten mit
+Reitern unten und die Statusleiste. Was Griffel noch nicht kann, steht ausgegraut. Nur Fensterrahmen und
+Menüleiste oben sind vom Mac.
 
 ## Was Griffel kann
 
@@ -73,7 +77,9 @@ SHA-256, SHA-512), «Ausführen …» mit den Variablen von Notepad++, Datei im 
 Befehl `griffel` fürs Terminal (installieren im Menü «Griffel»).
 
 **Optionen.** Der Dialog hat alle 23 Seiten von Notepad++ (⌘,). Was Griffel einstellen kann, wirkt
-sofort; der Rest steht ausgegraut.
+sofort: Tableiste, Symbolleiste, aktuelle Zeile, Cursor, Zeilenumbruch, Faltungsstil, senkrechte
+Kanten, Änderungshistorie, neue Dokumente, Einrückung, Hervorhebung, Autovervollständigung, Sitzung und
+mehr. Der Rest steht ausgegraut.
 
 ![Der Dialog «Optionen», Seite «Dateireiter (Tabs)»](docs/bilder/optionen.png)
 
@@ -157,8 +163,8 @@ swift test
 ```
 
 prüft Zeichensätze, Suchen und Ersetzen, die Suche im Ordner, die Zeilen- und Textwerkzeuge,
-Funktionsliste, Autovervollständigung, benutzerdefinierte Sprachen und die eingebauten Plugins (57 Tests; einige lesen dazu die
-Dateien von Notepad++). Auf GitHub laufen sie bei jedem Push.
+Funktionsliste, Autovervollständigung, benutzerdefinierte Sprachen und die eingebauten Plugins
+(57 Tests; einige lesen dazu die Dateien von Notepad++). Auf GitHub laufen sie bei jedem Push.
 
 Die App kann sich selbst prüfen und schreibt einen Bericht samt Bildern ihrer Fenster
 (`Sources/Kladde/Probe.swift`). Im Hintergrund starten, damit sie keine Tasten abfängt:
@@ -169,7 +175,8 @@ open -g -n -W -a build/Griffel.app datei.txt --args -KladdeProbe /tmp/probe -Kla
 
 Die Bilder in diesem README erneuert `./scripts/bilder.sh`: Eine Kopie der App mit eigener Kennung
 öffnet die Beispiele aus `docs/bilder/beispiele/` und zeichnet ihre Fenster selbst (Selbstprüfung
-«bilder»).
+«bilder»). Das Vorschaubild für geteilte Links (`docs/bilder/vorschau.png`, auf GitHub unter Settings →
+General → Social preview) zeichnet `swift scripts/vorschau.swift`.
 
 ## Aufbau
 
@@ -180,7 +187,7 @@ Die Bilder in diesem README erneuert `./scripts/bilder.sh`: Eine Kopie der App m
 | `Tests/KladdeKernTests/` | Tests dazu |
 | `Sources/ScintillaBruecke/` | Macht ScintillaView und Lexilla für Swift sichtbar |
 | `extern/mac/windows.h` | Ersatz für `<windows.h>`, damit der UDL-Lexer von Notepad++ auf dem Mac baut |
-| `scripts/` | Bau von Kern, App, Sprachdaten, Icon, DMG und der Bilder fürs README |
+| `scripts/` | Bau von Kern, App, Sprachdaten, Icon und DMG samt Signatur und Beglaubigung, die Secrets dafür, die Bilder fürs README und das Vorschaubild |
 | `Ressourcen/` | Info.plist, Icon, Befehl `griffel` |
 
 Ordner, Module, die Kennung `io.github.simon-baumhauer.kladde` und die Startschalter `-Kladde…` tragen
@@ -189,8 +196,8 @@ noch den alten Namen; umbenannt ist, was man in der App, beim Installieren und i
 Sprachen und Farbschemata entstehen beim Bauen aus `langs.model.xml`, `stylers.model.xml` und
 `installer/themes/` von Notepad++ (`scripts/sprachdaten.py`). Menüs, Kürzel, Tab-Menü, das Layout des
 Suchen-Dialogs und die deutschen Texte liest `scripts/oberflaeche.py` aus `Notepad_plus.rc`,
-`Parameters.cpp`, `FindReplaceDlg.rc` und `german.xml`; die Symbole kommen aus `src/icons/`. Wie Notepad++ jede Sprache in Scintilla
-einrichtet, steht in `Sources/Kladde/Sprachregeln.swift`.
+`Parameters.cpp`, `FindReplaceDlg.rc` und `german.xml`; die Symbole kommen aus `src/icons/`. Wie
+Notepad++ jede Sprache in Scintilla einrichtet, steht in `Sources/Kladde/Sprachregeln.swift`.
 
 Die Sitzung liegt unter `~/Library/Application Support/Griffel/Sitzung/`, benutzerdefinierte
 Sprachen unter `~/Library/Application Support/Griffel/userDefineLangs/`; der Ordner `Kladde` von
