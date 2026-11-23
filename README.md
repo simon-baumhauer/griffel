@@ -104,12 +104,21 @@ Die von Notepad++, mit ⌘ statt Ctrl und ⌥ statt Alt. Wo macOS ⌘ selbst bra
 
 ## Installieren
 
-Unter [Releases](https://github.com/simon-baumhauer/griffel/releases) das DMG laden, öffnen und
-**Griffel** in **Programme** ziehen.
+Mit [Homebrew](https://brew.sh):
 
-Griffel ist nicht bei Apple beglaubigt. Beim ersten Öffnen meldet macOS darum, die App könne nicht
-geprüft werden. Dann **Systemeinstellungen → Datenschutz & Sicherheit** öffnen und bei «Griffel» auf
-**Dennoch öffnen** klicken, oder im Terminal:
+```bash
+brew install --cask simon-baumhauer/tap/griffel
+```
+
+Das legt Griffel unter **Programme** an und dazu den Befehl `griffel` fürs Terminal. Aktualisieren mit
+`brew upgrade --cask griffel`. Solange Griffel nicht bei Apple beglaubigt ist, entfernt der Cask die
+Quarantäne-Markierung der App; macOS öffnet sie dann ohne Rückfrage. Der Cask liegt in
+[simon-baumhauer/homebrew-tap](https://github.com/simon-baumhauer/homebrew-tap).
+
+Ohne Homebrew: Unter [Releases](https://github.com/simon-baumhauer/griffel/releases) das DMG laden,
+öffnen und **Griffel** in **Programme** ziehen. Griffel ist nicht bei Apple beglaubigt. Beim ersten
+Öffnen meldet macOS darum, die App könne nicht geprüft werden. Dann **Systemeinstellungen → Datenschutz
+& Sicherheit** öffnen und bei «Griffel» auf **Dennoch öffnen** klicken, oder im Terminal:
 
 ```bash
 xattr -dr com.apple.quarantine /Applications/Griffel.app

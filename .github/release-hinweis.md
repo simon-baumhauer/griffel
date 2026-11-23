@@ -54,6 +54,8 @@ Die Tastenkürzel sind jetzt die von Notepad++ (⌘ statt Ctrl, ⌥ statt Alt); 
 
 ## Installieren
 
+Mit Homebrew: `brew install --cask simon-baumhauer/tap/griffel`, aktualisieren mit `brew upgrade --cask griffel`. Ohne Homebrew:
+
 1. Das DMG unten herunterladen und öffnen, **Griffel** in **Programme** ziehen.
 2. Griffel ist signiert und von Apple beglaubigt. Beim ersten Öffnen fragt macOS nur, ob die App aus dem Internet geöffnet werden soll.
 3. Wer Kladde schon hat: Griffel übernimmt Einstellungen, Sitzung und benutzerdefinierte Sprachen. Kladde.app danach in den Papierkorb legen.
