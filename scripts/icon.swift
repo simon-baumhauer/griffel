@@ -1,16 +1,16 @@
-// Zeichnet das Icon von Griffel, Vorschlag D «Eselsohr» (Design-Canvas
+// Zeichnet das Icon von NoteMac++, Vorschlag D «Eselsohr» (Design-Canvas
 // «Kladde Logos», gewählt am 20.11.2026): ein cremeweisses Blatt mit
 // umgeknickter Ecke in Bernstein und fünf Codezeilen, auf Anthrazit.
 //
-//   swift scripts/icon.swift Ressourcen/Griffel.icns
+//   swift scripts/icon.swift Ressourcen/NoteMac.icns
 //
-// Schreibt Griffel.icns (alle Grössen von 16 bis 1024 Pixel) und daneben
-// Griffel.png (1024 × 1024). Braucht nur macOS (CoreGraphics, iconutil).
+// Schreibt NoteMac.icns (alle Grössen von 16 bis 1024 Pixel) und daneben
+// NoteMac.png (1024 × 1024). Braucht nur macOS (CoreGraphics, iconutil).
 import AppKit
 import Foundation
 
-let ziel = URL(fileURLWithPath: CommandLine.arguments.count > 1 ? CommandLine.arguments[1] : "Griffel.icns")
-let arbeit = FileManager.default.temporaryDirectory.appendingPathComponent("griffel-icon-\(UUID().uuidString).iconset")
+let ziel = URL(fileURLWithPath: CommandLine.arguments.count > 1 ? CommandLine.arguments[1] : "NoteMac.icns")
+let arbeit = FileManager.default.temporaryDirectory.appendingPathComponent("notemac-icon-\(UUID().uuidString).iconset")
 try FileManager.default.createDirectory(at: arbeit, withIntermediateDirectories: true)
 
 func farbe(_ rgb: UInt32, _ a: CGFloat = 1) -> CGColor {

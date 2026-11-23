@@ -24,7 +24,7 @@ for o in $OBJ/*.o(N); do
 done
 
 # Der Quellcode von Notepad++ liegt nicht im Repo, sondern wird geholt: der
-# Stand, gegen den Griffel gebaut und geprüft ist.
+# Stand, gegen den NoteMac++ gebaut und geprüft ist.
 STAND=ff2530a478f11bbe0fb4867b837f842e24e49386
 if [[ ! -d $NPP ]]; then
   echo "→ Notepad++ holen"

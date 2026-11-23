@@ -83,8 +83,8 @@ final class Dateisuche {
         let frage = NSAlert()
         frage.messageText = "\(treffer) Treffer in \(dateien.count) \(dateien.count == 1 ? "Datei" : "Dateien") ersetzen?"
         frage.informativeText = """
-            Dateien, die in Griffel offen sind, ändert Griffel dort und speichert sie nicht. \
-            Alle anderen schreibt Griffel sofort auf die Platte; das lässt sich nicht rückgängig machen.
+            Dateien, die in NoteMac++ offen sind, ändert NoteMac++ dort und speichert sie nicht. \
+            Alle anderen schreibt NoteMac++ sofort auf die Platte; das lässt sich nicht rückgängig machen.
             """
         frage.alertStyle = .warning
         frage.addButton(withTitle: "Ersetzen")

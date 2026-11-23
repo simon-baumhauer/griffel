@@ -3,7 +3,7 @@ import ScintillaBruecke
 
 /// Selbstprüfung der laufenden App, für den Bau ohne Zuschauer:
 ///
-///     open -n -a build/Griffel.app datei1 datei2 --args -KladdeProbe /pfad/zum/ordner \
+///     open -n -a build/NoteMac++.app datei1 datei2 --args -KladdeProbe /pfad/zum/ordner \
 ///         [-KladdeProbeAktion sichern|tippen|nichts] [-KladdeSitzung /pfad/zur/sitzung]
 ///
 /// Die App schreibt je Dokument ein Bild und in bericht.txt, was sie sieht.
@@ -556,7 +556,7 @@ enum Probe {
             vorne("py")
         }
         schritte.append {}
-        schritte.append { bild(von: fenster, nach: ordner.appendingPathComponent("griffel.png")) }
+        schritte.append { bild(von: fenster, nach: ordner.appendingPathComponent("notemac.png")) }
         schritte.append {
             NSApp.appearance = NSAppearance(named: .darkAqua)
             Einstellungen.farbschema = "DarkModeDefault"
@@ -565,7 +565,7 @@ enum Probe {
             vorne("ts")
         }
         schritte.append {}
-        schritte.append { bild(von: fenster, nach: ordner.appendingPathComponent("griffel-dunkel.png")) }
+        schritte.append { bild(von: fenster, nach: ordner.appendingPathComponent("notemac-dunkel.png")) }
         schritte.append {
             NSApp.appearance = NSAppearance(named: .aqua)
             Einstellungen.farbschema = "Standard"
@@ -1229,7 +1229,7 @@ enum Probe {
         func setze(_ t: String) { e.ersetze([(0..<e.laenge, t)]); e.waehleAus(0..<0) }
         var schritte: [() -> Void] = []
         schritte.append {
-            setze(#"{"name":"Griffel","version":1.20,"plugins":["JSON Viewer","XML Tools"],"frei":true,"leer":{}}"#)
+            setze(#"{"name":"NoteMac++","version":1.20,"plugins":["JSON Viewer","XML Tools"],"frei":true,"leer":{}}"#)
             p.fuehreAus("json.format")
             bericht("json format:\n" + text())
             p.fuehreAus("json.viewer")

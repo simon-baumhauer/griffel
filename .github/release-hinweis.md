@@ -1,4 +1,4 @@
-Ein Texteditor für den Mac nach dem Vorbild von Notepad++ – Scintilla und Lexilla wie dort, die Oberfläche in Swift nachgebaut. Für Apple Silicon und Intel, ab macOS 13.
+NoteMac++ ist ein Texteditor für den Mac nach dem Vorbild von Notepad++ – Scintilla und Lexilla wie dort, die Oberfläche in Swift nachgebaut. Für Apple Silicon und Intel, ab macOS 13. Ein unabhängiges Projekt; es gehört nicht zu Notepad++.
 
 ## Neu in 1.5.0
 
@@ -54,10 +54,10 @@ Die Tastenkürzel sind jetzt die von Notepad++ (⌘ statt Ctrl, ⌥ statt Alt); 
 
 ## Installieren
 
-Mit Homebrew: `brew install --cask simon-baumhauer/tap/griffel`, aktualisieren mit `brew upgrade --cask griffel`. Ohne Homebrew:
+Mit Homebrew: `brew install --cask simon-baumhauer/tap/notemac`, aktualisieren mit `brew upgrade --cask notemac`. Ohne Homebrew:
 
-1. Das DMG unten herunterladen und öffnen, **Griffel** in **Programme** ziehen.
-2. Griffel ist signiert und von Apple beglaubigt. Beim ersten Öffnen fragt macOS nur, ob die App aus dem Internet geöffnet werden soll.
-3. Wer Kladde schon hat: Griffel übernimmt Einstellungen, Sitzung und benutzerdefinierte Sprachen. Kladde.app danach in den Papierkorb legen.
+1. Das DMG unten herunterladen und öffnen, **NoteMac++** in **Programme** ziehen.
+2. NoteMac++ ist signiert und von Apple beglaubigt. Beim ersten Öffnen fragt macOS nur, ob die App aus dem Internet geöffnet werden soll.
+3. Wer Griffel oder Kladde schon hat: NoteMac++ übernimmt Einstellungen, Sitzung und benutzerdefinierte Sprachen. Die alte App danach in den Papierkorb legen.
 
-Was Griffel kann, steht im [README](https://github.com/simon-baumhauer/griffel#readme).
+Was NoteMac++ kann, steht im [README](https://github.com/simon-baumhauer/notemac#readme).

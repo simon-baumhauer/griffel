@@ -548,7 +548,7 @@ enum Dialoge {
         d.kombi("IDC_COMBO_RUN_PATH")?.addItems(withObjectValues: verlauf)
         d.setzeText("IDC_COMBO_RUN_PATH", ablage.string(forKey: "LetzterBefehl") ?? "open \"$(FULL_CURRENT_PATH)\"")
         d.aktiv("IDC_BUTTON_SAVE", false)
-        (d.elemente["IDC_BUTTON_SAVE"] as? NSButton)?.toolTip = "Gesicherte Befehle im Menü «Ausführen» kennt Griffel noch nicht."
+        (d.elemente["IDC_BUTTON_SAVE"] as? NSButton)?.toolTip = "Gesicherte Befehle im Menü «Ausführen» kennt NoteMac++ noch nicht."
         (d.elemente["IDC_BUTTON_VARIABLES"] as? NSButton)?.toolTip = "Variable einsetzen"
         d.gedrueckt = { id in
             switch id {

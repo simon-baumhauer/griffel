@@ -1,6 +1,6 @@
 # Notizen
 
-Griffel ist ein Texteditor für den Mac nach dem Vorbild von Notepad++.
+NoteMac++ ist ein Texteditor für den Mac nach dem Vorbild von Notepad++.
 
 ## Heute
 

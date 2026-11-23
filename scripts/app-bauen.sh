@@ -1,12 +1,12 @@
 #!/bin/zsh
-# Baut build/Griffel.app. Mit «--start» öffnet sich die App danach, mit
+# Baut build/NoteMac++.app. Mit «--start» öffnet sich die App danach, mit
 # «--universell» entsteht sie für Apple Silicon und Intel (für die Weitergabe).
 # Den Editor-Kern baut scripts/extern-bauen.sh beim ersten Mal von selbst.
 set -euo pipefail
 
 WURZEL=${0:A:h:h}
 KERN=$WURZEL/build/extern/out
-APP=$WURZEL/build/Griffel.app
+APP=$WURZEL/build/NoteMac++.app
 
 [[ -d $KERN/Scintilla.framework && -f $KERN/liblexilla.dylib ]] || $WURZEL/scripts/extern-bauen.sh
 
@@ -41,18 +41,18 @@ rm -f $protokoll
 rm -rf $APP
 mkdir -p $APP/Contents/MacOS $APP/Contents/Frameworks $APP/Contents/Resources
 # Das Ziel in Package.swift heisst noch «Kladde» (der alte Name der App).
-cp $programm $APP/Contents/MacOS/Griffel
+cp $programm $APP/Contents/MacOS/NoteMac++
 # swift build trägt auch den Ordner der Swift-Bibliotheken von Xcode als Suchpfad
 # ein. Auf anderen Macs fehlt er, und Apple lehnt die Beglaubigung ab, solange ein
 # Suchpfad aus dem Bündel hinaus auf einen leeren Ort zeigt (syspolicy_check:
-# «Bad Load Command»). Griffel braucht nur /usr/lib/swift und die eigenen Frameworks.
-otool -l $APP/Contents/MacOS/Griffel | sed -n 's/^ *path \(.*\) (offset [0-9]*)$/\1/p' |
+# «Bad Load Command»). NoteMac++ braucht nur /usr/lib/swift und die eigenen Frameworks.
+otool -l $APP/Contents/MacOS/NoteMac++ | sed -n 's/^ *path \(.*\) (offset [0-9]*)$/\1/p' |
   while IFS= read -r pfad; do
     case $pfad in
       /usr/lib/swift|@*) ;;
       /*)
         # Die Warnung, dass die Signatur ungültig wird, stimmt; signiert wird unten.
-        if ! meldung=$(install_name_tool -delete_rpath "$pfad" $APP/Contents/MacOS/Griffel 2>&1); then
+        if ! meldung=$(install_name_tool -delete_rpath "$pfad" $APP/Contents/MacOS/NoteMac++ 2>&1); then
           echo "$meldung" >&2
           exit 1
         fi
@@ -64,8 +64,8 @@ cp Ressourcen/Info.plist $APP/Contents/
 version=$( { git describe --tags --abbrev=0 2>/dev/null || true; } | sed 's/^v//')
 /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString ${version:-0.0.0}" $APP/Contents/Info.plist
 /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $(git rev-list --count HEAD 2>/dev/null || echo 1)" $APP/Contents/Info.plist
-cp Ressourcen/griffel $APP/Contents/Resources/griffel
-cp Ressourcen/Griffel.icns $APP/Contents/Resources/Griffel.icns
+cp Ressourcen/notemac $APP/Contents/Resources/notemac
+cp Ressourcen/NoteMac.icns $APP/Contents/Resources/NoteMac.icns
 cp -R $KERN/Scintilla.framework $APP/Contents/Frameworks/
 cp $KERN/liblexilla.dylib $APP/Contents/Frameworks/
 cp LICENSE $APP/Contents/Resources/LICENSE-GPL.txt
@@ -76,7 +76,7 @@ rm -rf $WURZEL/build/sprachdaten
 python3 -I scripts/sprachdaten.py extern/notepad-plus-plus $WURZEL/build/sprachdaten
 cp -R $WURZEL/build/sprachdaten $APP/Contents/Resources/Sprachdaten
 
-# Symbole von Notepad++ (Werkzeugleiste, Tabs, Seitenleisten), GPL wie Griffel.
+# Symbole von Notepad++ (Werkzeugleiste, Tabs, Seitenleisten), GPL wie NoteMac++.
 mkdir -p $APP/Contents/Resources/Symbole
 for satz in standard light dark; do
   cp -R extern/notepad-plus-plus/PowerEditor/src/icons/$satz $APP/Contents/Resources/Symbole/

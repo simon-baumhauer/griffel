@@ -5,8 +5,8 @@
 //
 //   swift scripts/vorschau.swift [docs/bilder/vorschau.png]
 //
-// Aus dem Hauptordner aufrufen; liest Ressourcen/Griffel.png und
-// docs/bilder/griffel.png. Braucht nur macOS (CoreGraphics, CoreText).
+// Aus dem Hauptordner aufrufen; liest Ressourcen/NoteMac.png und
+// docs/bilder/notemac.png. Braucht nur macOS (CoreGraphics, CoreText).
 import AppKit
 import CoreText
 import Foundation
@@ -23,7 +23,7 @@ func farbe(_ rgb: UInt32, _ a: CGFloat = 1) -> CGColor {
 func bild(_ pfad: String) -> CGImage {
     guard let quelle = CGImageSourceCreateWithURL(URL(fileURLWithPath: pfad) as CFURL, nil),
           let bild = CGImageSourceCreateImageAtIndex(quelle, 0, nil) else {
-        FileHandle.standardError.write(Data("\(pfad) fehlt; aus dem Hauptordner von Griffel aufrufen.\n".utf8))
+        FileHandle.standardError.write(Data("\(pfad) fehlt; aus dem Hauptordner von NoteMac++ aufrufen.\n".utf8))
         exit(1)
     }
     return bild
@@ -43,7 +43,7 @@ let verlauf = CGGradient(
 k.drawLinearGradient(verlauf, start: CGPoint(x: 0, y: y(0)), end: CGPoint(x: 0, y: y(640)), options: [])
 
 // Rechts das Fenster, rund abgeschnitten, mit Schatten; es läuft über den Rand hinaus.
-let fenster = bild("docs/bilder/griffel.png")
+let fenster = bild("docs/bilder/notemac.png")
 let fensterBreite: CGFloat = 780
 let fensterHoehe = fensterBreite * CGFloat(fenster.height) / CGFloat(fenster.width)
 let fensterRahmen = CGRect(x: 660, y: y(84) - fensterHoehe, width: fensterBreite, height: fensterHoehe)
@@ -67,7 +67,7 @@ k.strokePath()
 // Links das Icon. Die PNG hat Apples Rand von 100 auf 1024; die Fläche selbst
 // beginnt bündig mit dem Text.
 let links: CGFloat = 88
-let icon = bild("Ressourcen/Griffel.png")
+let icon = bild("Ressourcen/NoteMac.png")
 let flaeche: CGFloat = 140
 let iconGroesse = flaeche * 1024 / 824
 let iconRand = iconGroesse * 100 / 1024
@@ -87,13 +87,13 @@ func zeile(_ text: String, _ schrift: NSFont, _ f: CGColor, x: CGFloat, grundlin
 }
 
 let papier = farbe(0xF7F4EC), grau = farbe(0xB4B9C2), bernstein = farbe(0xF2B035)
-zeile("Griffel", NSFont.systemFont(ofSize: 96, weight: .semibold), papier, x: links - 4, grundlinie: 352)
+zeile("NoteMac++", NSFont.systemFont(ofSize: 96, weight: .semibold), papier, x: links - 4, grundlinie: 352)
 zeile("Texteditor für den Mac", NSFont.systemFont(ofSize: 34, weight: .regular), grau, x: links, grundlinie: 408)
 zeile("nach dem Vorbild von Notepad++", NSFont.systemFont(ofSize: 34, weight: .regular), grau, x: links, grundlinie: 452)
 
 // Der Befehl für Homebrew in einer Pille.
 let mono = NSFont.monospacedSystemFont(ofSize: 17, weight: .regular)
-let befehl = "brew install --cask simon-baumhauer/tap/griffel"
+let befehl = "brew install --cask simon-baumhauer/tap/notemac"
 let probe = CTLineCreateWithAttributedString(NSAttributedString(string: "$ " + befehl, attributes: [
     NSAttributedString.Key(kCTFontAttributeName as String): mono,
 ]))

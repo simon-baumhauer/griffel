@@ -2,32 +2,10 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<key>CFBundleName</key>
-	<string>Griffel</string>
-	<key>CFBundleDisplayName</key>
-	<string>Griffel</string>
-	<key>CFBundleExecutable</key>
-	<string>Griffel</string>
-	<key>CFBundleIdentifier</key>
-	<string>io.github.simon-baumhauer.kladde</string>
-	<key>CFBundleIconFile</key>
-	<string>Griffel</string>
-	<key>CFBundlePackageType</key>
-	<string>APPL</string>
-	<key>CFBundleShortVersionString</key>
-	<string>0.1</string>
-	<key>CFBundleVersion</key>
-	<string>1</string>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>de</string>
-	<key>LSMinimumSystemVersion</key>
-	<string>13.0</string>
-	<key>NSPrincipalClass</key>
-	<string>NSApplication</string>
-	<key>NSHighResolutionCapable</key>
-	<true/>
-	<key>NSHumanReadableCopyright</key>
-	<string>Freie Software unter der GPL v3. Editor-Kern: Scintilla und Lexilla, aus dem Quellcode von Notepad++.</string>
+	<key>CFBundleDisplayName</key>
+	<string>NoteMac++</string>
 	<key>CFBundleDocumentTypes</key>
 	<array>
 		<dict>
@@ -46,5 +24,27 @@
 			<string>KladdeDokument</string>
 		</dict>
 	</array>
+	<key>CFBundleExecutable</key>
+	<string>NoteMac++</string>
+	<key>CFBundleIconFile</key>
+	<string>NoteMac</string>
+	<key>CFBundleIdentifier</key>
+	<string>io.github.simon-baumhauer.kladde</string>
+	<key>CFBundleName</key>
+	<string>NoteMac++</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>0.1</string>
+	<key>CFBundleVersion</key>
+	<string>1</string>
+	<key>LSMinimumSystemVersion</key>
+	<string>13.0</string>
+	<key>NSHighResolutionCapable</key>
+	<true/>
+	<key>NSHumanReadableCopyright</key>
+	<string>Freie Software unter der GPL v3. Editor-Kern: Scintilla und Lexilla, aus dem Quellcode von Notepad++.</string>
+	<key>NSPrincipalClass</key>
+	<string>NSApplication</string>
 </dict>
 </plist>

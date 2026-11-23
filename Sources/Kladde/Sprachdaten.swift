@@ -70,7 +70,7 @@ final class Sprachdaten {
             .flatMap { try? Data(contentsOf: $0.appendingPathComponent("farbschemata.json")) }
             .flatMap { try? dekoder.decode([String].self, from: $0) } ?? []
         if sprachen.isEmpty {
-            NSLog("Griffel: Sprachdaten fehlen im Bündel; es gibt nur normalen Text.")
+            NSLog("NoteMac++: Sprachdaten fehlen im Bündel; es gibt nur normalen Text.")
         }
 
         nachName = Dictionary(sprachen.map { ($0.name, $0) }, uniquingKeysWith: { erste, _ in erste })

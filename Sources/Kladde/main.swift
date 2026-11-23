@@ -53,7 +53,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSDocumentController.shared.documents.isEmpty
     }
 
-    /// «Über Griffel» mit Herkunft und Lizenzen.
+    /// «Über NoteMac++» mit Herkunft und Lizenzen.
     @objc func zeigeUeber(_ sender: Any?) {
         let text = """
             Ein Texteditor für den Mac nach dem Vorbild von Notepad++.
@@ -62,7 +62,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             Funktionslisten und Autovervollständigung: aus Notepad++ von Don Ho und Mitwirkenden.
 
             Freie Software unter der GPL v3.
-            github.com/simon-baumhauer/griffel
+            github.com/simon-baumhauer/notemac
             """
         let absatz = NSMutableParagraphStyle()
         absatz.alignment = .center
@@ -70,8 +70,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             .font: NSFont.systemFont(ofSize: NSFont.smallSystemFontSize),
             .foregroundColor: NSColor.labelColor, .paragraphStyle: absatz,
         ])
-        let link = (text as NSString).range(of: "github.com/simon-baumhauer/griffel")
-        mitwirkende.addAttribute(.link, value: URL(string: "https://github.com/simon-baumhauer/griffel")!, range: link)
+        let link = (text as NSString).range(of: "github.com/simon-baumhauer/notemac")
+        mitwirkende.addAttribute(.link, value: URL(string: "https://github.com/simon-baumhauer/notemac")!, range: link)
         NSApp.orderFrontStandardAboutPanel(options: [.credits: mitwirkende])
         NSApp.activate(ignoringOtherApps: true)
     }
@@ -82,24 +82,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: Befehl fürs Terminal
 
-    /// Legt das Skript «griffel» in einen Ordner im PATH: zuerst den von
+    /// Legt das Skript «notemac» in einen Ordner im PATH: zuerst den von
     /// Homebrew, wenn er beschreibbar ist, sonst ~/.local/bin. Fragt vorher.
     @objc func installiereBefehl(_ sender: Any?) {
-        guard let quelle = Bundle.main.url(forResource: "griffel", withExtension: nil) else { return NSSound.beep() }
+        guard let quelle = Bundle.main.url(forResource: "notemac", withExtension: nil) else { return NSSound.beep() }
         let dateien = FileManager.default
         let heim = dateien.homeDirectoryForCurrentUser
         let kandidaten = ["/opt/homebrew/bin", "/usr/local/bin"].map { URL(fileURLWithPath: $0) }
         let ordner = kandidaten.first { dateien.isWritableFile(atPath: $0.path) }
             ?? heim.appendingPathComponent(".local/bin", isDirectory: true)
-        let ziel = ordner.appendingPathComponent("griffel")
+        let ziel = ordner.appendingPathComponent("notemac")
         let imPfad = (ProcessInfo.processInfo.environment["PATH"] ?? "").split(separator: ":").contains { $0 == ordner.path }
 
         let frage = NSAlert()
-        frage.messageText = "Befehl «griffel» installieren?"
+        frage.messageText = "Befehl «notemac» installieren?"
         frage.informativeText = """
-            Griffel legt das Skript nach \((ziel.path as NSString).abbreviatingWithTildeInPath)\
+            NoteMac++ legt das Skript nach \((ziel.path as NSString).abbreviatingWithTildeInPath)\
             \(dateien.fileExists(atPath: ziel.path) ? " (die vorhandene Datei wird ersetzt)" : "").
-            Danach öffnet «griffel datei.txt» die Datei in Griffel; eine fehlende Datei legt der Befehl leer an.
+            Danach öffnet «notemac datei.txt» die Datei in NoteMac++; eine fehlende Datei legt der Befehl leer an.
             """
         frage.addButton(withTitle: "Installieren")
         frage.addButton(withTitle: "Abbrechen")
@@ -110,9 +110,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             try dateien.copyItem(at: quelle, to: ziel)
             try dateien.setAttributes([.posixPermissions: 0o755], ofItemAtPath: ziel.path)
             let fertig = NSAlert()
-            fertig.messageText = "«griffel» ist installiert"
+            fertig.messageText = "«notemac» ist installiert"
             fertig.informativeText = imPfad
-                ? "Im Terminal: griffel datei.txt"
+                ? "Im Terminal: notemac datei.txt"
                 : "\(ordner.path) steht noch nicht im PATH. In ~/.zshrc ergänzen:\nexport PATH=\"\(ordner.path):$PATH\""
             fertig.runModal()
         } catch {

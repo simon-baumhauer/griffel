@@ -1,24 +1,24 @@
 #!/bin/zsh
-# Baut build/Griffel-<version>.dmg zum Weitergeben: die App universell (Apple
+# Baut build/NoteMac-<version>.dmg zum Weitergeben: die App universell (Apple
 # Silicon und Intel), dazu eine Verknüpfung zu «Programme».
 #
 #   ./scripts/dmg-bauen.sh                 signiert und beglaubigt, wenn die Angaben unten da sind
 #   ./scripts/dmg-bauen.sh --beglaubigen   bricht ab, wenn eine davon fehlt
 #
-# Ohne Signatur und Beglaubigung meldet macOS beim ersten Öffnen «“Griffel” Not
+# Ohne Signatur und Beglaubigung meldet macOS beim ersten Öffnen «“NoteMac++” Not
 # Opened»; so ein DMG taugt nur zum Ausprobieren. Der Lauf «Veröffentlichen» baut
 # darum immer mit --beglaubigen.
 #
-# Signatur: GRIFFEL_IDENTITAET, etwa "Developer ID Application: Name (TEAMID)".
-# Mit GRIFFEL_SCHLUESSELBUND sucht codesign sie nur in diesem Schlüsselbund.
+# Signatur: NOTEMAC_IDENTITAET, etwa "Developer ID Application: Name (TEAMID)".
+# Mit NOTEMAC_SCHLUESSELBUND sucht codesign sie nur in diesem Schlüsselbund.
 # Signiert wird mit Hardened Runtime und dem Zeitstempel von Apple.
 #
 # Beglaubigung, eines von beiden:
-#   GRIFFEL_NOTAR_PROFIL       ein Profil aus «xcrun notarytool store-credentials»;
-#                              scripts/signatur-einrichten.sh legt «griffel» an
-#   GRIFFEL_NOTAR_SCHLUESSEL   Pfad zur .p8-Datei eines Schlüssels von App Store
-#                              Connect, dazu GRIFFEL_NOTAR_SCHLUESSEL_ID und
-#                              GRIFFEL_NOTAR_AUSSTELLER (so im Lauf auf GitHub)
+#   NOTEMAC_NOTAR_PROFIL       ein Profil aus «xcrun notarytool store-credentials»;
+#                              scripts/signatur-einrichten.sh legt «notemac» an
+#   NOTEMAC_NOTAR_SCHLUESSEL   Pfad zur .p8-Datei eines Schlüssels von App Store
+#                              Connect, dazu NOTEMAC_NOTAR_SCHLUESSEL_ID und
+#                              NOTEMAC_NOTAR_AUSSTELLER (so im Lauf auf GitHub)
 #
 # Beglaubigt werden erst die App, dann das DMG; beide bekommen das Ticket
 # angeheftet, damit sie auch ohne Netz öffnen. Zum Schluss prüft das Skript das
@@ -37,28 +37,28 @@ for arg in "$@"; do
   esac
 done
 
-identitaet=${GRIFFEL_IDENTITAET:-}
+identitaet=${NOTEMAC_IDENTITAET:-}
 schluesselbund=()
-[[ -n ${GRIFFEL_SCHLUESSELBUND:-} ]] && schluesselbund=(--keychain $GRIFFEL_SCHLUESSELBUND)
+[[ -n ${NOTEMAC_SCHLUESSELBUND:-} ]] && schluesselbund=(--keychain $NOTEMAC_SCHLUESSELBUND)
 notar=()
-if [[ -n ${GRIFFEL_NOTAR_SCHLUESSEL:-} ]]; then
-  if [[ -z ${GRIFFEL_NOTAR_SCHLUESSEL_ID:-} || -z ${GRIFFEL_NOTAR_AUSSTELLER:-} ]]; then
-    echo "Zu GRIFFEL_NOTAR_SCHLUESSEL fehlen GRIFFEL_NOTAR_SCHLUESSEL_ID oder GRIFFEL_NOTAR_AUSSTELLER." >&2
+if [[ -n ${NOTEMAC_NOTAR_SCHLUESSEL:-} ]]; then
+  if [[ -z ${NOTEMAC_NOTAR_SCHLUESSEL_ID:-} || -z ${NOTEMAC_NOTAR_AUSSTELLER:-} ]]; then
+    echo "Zu NOTEMAC_NOTAR_SCHLUESSEL fehlen NOTEMAC_NOTAR_SCHLUESSEL_ID oder NOTEMAC_NOTAR_AUSSTELLER." >&2
     exit 1
   fi
-  notar=(--key $GRIFFEL_NOTAR_SCHLUESSEL --key-id $GRIFFEL_NOTAR_SCHLUESSEL_ID --issuer $GRIFFEL_NOTAR_AUSSTELLER)
-elif [[ -n ${GRIFFEL_NOTAR_PROFIL:-} ]]; then
-  notar=(--keychain-profile $GRIFFEL_NOTAR_PROFIL $schluesselbund)
+  notar=(--key $NOTEMAC_NOTAR_SCHLUESSEL --key-id $NOTEMAC_NOTAR_SCHLUESSEL_ID --issuer $NOTEMAC_NOTAR_AUSSTELLER)
+elif [[ -n ${NOTEMAC_NOTAR_PROFIL:-} ]]; then
+  notar=(--keychain-profile $NOTEMAC_NOTAR_PROFIL $schluesselbund)
 fi
 
 if (( ${#notar} )) && [[ -z $identitaet ]]; then
-  echo "Beglaubigen geht nur mit Signatur, und GRIFFEL_IDENTITAET fehlt." >&2
+  echo "Beglaubigen geht nur mit Signatur, und NOTEMAC_IDENTITAET fehlt." >&2
   exit 1
 fi
 if $beglaubigen; then
   fehlt=()
-  [[ -n $identitaet ]] || fehlt+=("die Signatur (GRIFFEL_IDENTITAET)")
-  (( ${#notar} )) || fehlt+=("die Beglaubigung (GRIFFEL_NOTAR_PROFIL oder GRIFFEL_NOTAR_SCHLUESSEL)")
+  [[ -n $identitaet ]] || fehlt+=("die Signatur (NOTEMAC_IDENTITAET)")
+  (( ${#notar} )) || fehlt+=("die Beglaubigung (NOTEMAC_NOTAR_PROFIL oder NOTEMAC_NOTAR_SCHLUESSEL)")
   if (( ${#fehlt} )); then
     (( ${#fehlt} > 1 )) && verb=fehlen || verb=fehlt
     echo "Für ein beglaubigtes DMG $verb ${(j: und :)fehlt}; siehe scripts/signatur-einrichten.sh." >&2
@@ -77,9 +77,9 @@ aufraeumen() {
 trap aufraeumen EXIT
 
 ./scripts/app-bauen.sh --universell
-APP=build/Griffel.app
+APP=build/NoteMac++.app
 version=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" $APP/Contents/Info.plist)
-dmg=build/Griffel-$version.dmg
+dmg=build/NoteMac-$version.dmg
 
 signiere() {
   codesign --force --options runtime --timestamp --sign $identitaet $schluesselbund "$@"
@@ -118,18 +118,18 @@ if [[ -n $identitaet ]]; then
   signiere $APP
   codesign --verify --strict --deep --verbose=2 $APP
   if (( ${#notar} )); then
-    ditto -c -k --keepParent $APP $arbeit/Griffel.zip
-    beglaubige $arbeit/Griffel.zip
+    ditto -c -k --keepParent $APP $arbeit/NoteMac.zip
+    beglaubige $arbeit/NoteMac.zip
     xcrun stapler staple $APP
   fi
 fi
 
 echo "→ DMG"
 mkdir $arbeit/stapel
-ditto $APP $arbeit/stapel/Griffel.app
+ditto $APP $arbeit/stapel/NoteMac++.app
 ln -s /Applications $arbeit/stapel/Programme
 rm -f $dmg
-hdiutil create -quiet -volname "Griffel $version" -srcfolder $arbeit/stapel -ov -format UDZO $dmg
+hdiutil create -quiet -volname "NoteMac++ $version" -srcfolder $arbeit/stapel -ov -format UDZO $dmg
 if [[ -n $identitaet ]]; then
   codesign --force --timestamp --sign $identitaet $schluesselbund $dmg
   if (( ${#notar} )); then
@@ -144,7 +144,7 @@ if (( ${#notar} )); then
   xcrun stapler validate $dmg
   mkdir $arbeit/dmg
   hdiutil attach -quiet -nobrowse -readonly -noautoopen -mountpoint $arbeit/dmg $dmg
-  app=$arbeit/dmg/Griffel.app
+  app=$arbeit/dmg/NoteMac++.app
   codesign --verify --strict --deep $app
   xcrun stapler validate $app
   angaben=$(codesign -dvv $app 2>&1)
@@ -163,5 +163,5 @@ if (( ${#notar} )); then
   echo "fertig, signiert und beglaubigt: $WURZEL/$dmg"
 else
   echo "fertig: $WURZEL/$dmg"
-  echo "Nicht beglaubigt: macOS meldet beim ersten Öffnen «“Griffel” Not Opened». Nur zum Ausprobieren."
+  echo "Nicht beglaubigt: macOS meldet beim ersten Öffnen «“NoteMac++” Not Opened». Nur zum Ausprobieren."
 fi

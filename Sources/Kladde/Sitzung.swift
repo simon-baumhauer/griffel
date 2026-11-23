@@ -2,9 +2,9 @@ import AppKit
 
 /// Was beim Beenden offen war, ist beim nächsten Start wieder da — auch Tabs,
 /// die nie gesichert wurden, und ungesicherte Änderungen. Wie Notepad++ fragt
-/// Griffel darum beim Beenden nicht nach.
+/// NoteMac++ darum beim Beenden nicht nach.
 ///
-/// Ablage: ~/Library/Application Support/Griffel/Sitzung/ mit sitzung.json und
+/// Ablage: ~/Library/Application Support/NoteMac++/Sitzung/ mit sitzung.json und
 /// je ungesichertem Dokument einer Datei «<id>.sicherung» (der Text als UTF-8).
 /// Die Dateien der Dokumente selbst fasst die Sitzung nie an.
 enum Sitzung {
@@ -107,7 +107,7 @@ enum Sitzung {
     static func sichereInDatei() {
         guard let fenster = Hauptfenster.gemeinsam.window else { return }
         let wahl = NSSavePanel()
-        wahl.nameFieldStringValue = "Sitzung.griffel-sitzung"
+        wahl.nameFieldStringValue = "Sitzung.notemac-sitzung"
         wahl.beginSheetModal(for: fenster) { antwort in
             guard antwort == .OK, let ziel = wahl.url else { return }
             let tabs = Hauptfenster.gemeinsam.tabs

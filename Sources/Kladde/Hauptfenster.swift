@@ -1,7 +1,7 @@
 import AppKit
 import ScintillaBruecke
 
-/// Das eine Fenster von Griffel, aufgebaut wie Notepad++: Werkzeugleiste,
+/// Das eine Fenster von NoteMac++, aufgebaut wie Notepad++: Werkzeugleiste,
 /// Tableiste, Editor mit Seitenleisten links und rechts, unten das
 /// Suchergebnis und die inkrementelle Suche, ganz unten die Statusleiste.
 ///
@@ -251,13 +251,13 @@ final class Hauptfenster: NSWindowController, NSWindowDelegate {
         e.kontextmenue = { Befehlsmenue.editormenue() }
     }
 
-    /// Titel wie in Notepad++: «*/pfad/datei.txt - Griffel».
+    /// Titel wie in Notepad++: «*/pfad/datei.txt - NoteMac++».
     func tabsGeaendert() {
         if let d = aktivesDokument {
             let name = Einstellungen.kurzerTitel ? (d.fileURL?.lastPathComponent ?? d.tabTitel) : (d.fileURL?.path ?? d.tabTitel)
-            window?.title = (d.isDocumentEdited ? "*" : "") + name + " - Griffel"
+            window?.title = (d.isDocumentEdited ? "*" : "") + name + " - NoteMac++"
         } else {
-            window?.title = "Griffel"
+            window?.title = "NoteMac++"
         }
         window?.isDocumentEdited = false
         tableiste.needsDisplay = true
@@ -295,9 +295,9 @@ final class Hauptfenster: NSWindowController, NSWindowDelegate {
 
     // MARK: Schliessen
 
-    /// Schliesst Dokumente nacheinander. Bei ungesicherten fragt Griffel wie
+    /// Schliesst Dokumente nacheinander. Bei ungesicherten fragt NoteMac++ wie
     /// Notepad++ mit «Speichern» (Ja, Nein, Abbruch, Ja/Nein für alle). Bleibt
-    /// keines, entsteht ein leeres «neu 1» (oder Griffel endet, wenn eingestellt).
+    /// keines, entsteht ein leeres «neu 1» (oder NoteMac++ endet, wenn eingestellt).
     func schliesse(_ liste: [Dokument], dann: (() -> Void)? = nil) {
         var rest = liste
         var alleJa = false, alleNein = false

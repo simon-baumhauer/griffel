@@ -3,7 +3,7 @@
 // damit codesign auf einer anderen Maschine (dem Lauf auf GitHub) die Kette bilden
 // kann. Gebraucht von scripts/signatur-einrichten.sh.
 //
-//   GRIFFEL_P12_KENNWORT=… zertifikat-exportieren <SHA-1 des Zertifikats> <ziel.p12> [schlüsselbund]
+//   NOTEMAC_P12_KENNWORT=… zertifikat-exportieren <SHA-1 des Zertifikats> <ziel.p12> [schlüsselbund]
 //
 // Das Kennwort kommt aus der Umgebung, nicht aus den Argumenten, die jeder in ps
 // sieht. macOS fragt beim Export nach dem Anmeldepasswort, weil der private
@@ -23,8 +23,8 @@ guard argumente.count == 3 || argumente.count == 4 else {
 }
 let gesucht = argumente[1].uppercased()
 let ziel = URL(fileURLWithPath: argumente[2])
-guard let kennwort = ProcessInfo.processInfo.environment["GRIFFEL_P12_KENNWORT"], !kennwort.isEmpty else {
-    abbrechen("GRIFFEL_P12_KENNWORT fehlt.")
+guard let kennwort = ProcessInfo.processInfo.environment["NOTEMAC_P12_KENNWORT"], !kennwort.isEmpty else {
+    abbrechen("NOTEMAC_P12_KENNWORT fehlt.")
 }
 
 var abfrage: [String: Any] = [

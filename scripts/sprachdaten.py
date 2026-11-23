@@ -1,4 +1,4 @@
-"""Sprachen und Farbschemata aus dem Quellcode von Notepad++ für Griffel aufbereiten.
+"""Sprachen und Farbschemata aus dem Quellcode von Notepad++ für NoteMac++ aufbereiten.
 
 Aufruf: python3 -I scripts/sprachdaten.py <notepad-plus-plus> <ziel>
 

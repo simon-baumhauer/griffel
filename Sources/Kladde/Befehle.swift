@@ -2,11 +2,11 @@ import AppKit
 import CryptoKit
 import ScintillaBruecke
 
-/// Die Befehle von Notepad++ (IDM_…) und was Griffel für sie tut. Menüs,
+/// Die Befehle von Notepad++ (IDM_…) und was NoteMac++ für sie tut. Menüs,
 /// Werkzeugleiste und Kontextmenüs rufen alle hierher. Was hier fehlt, steht
 /// im Menü ausgegraut.
 extension Hauptfenster: NSMenuItemValidation {
-    /// Befehle, die Griffel ausführen kann.
+    /// Befehle, die NoteMac++ ausführen kann.
     static let befehle: Set<String> = {
         var s: Set<String> = [
             // Datei
@@ -474,12 +474,12 @@ extension Hauptfenster: NSMenuItemValidation {
         case "CMDLINEARGUMENTS":
             let hinweis = NSAlert()
             hinweis.messageText = "Kommandozeile"
-            hinweis.informativeText = "griffel [datei …]\n\nÖffnet die Dateien in Griffel; fehlende Dateien legt der Befehl leer an. Installieren: Menü «Griffel» → «Befehl ‹griffel› fürs Terminal installieren …»."
+            hinweis.informativeText = "notemac [datei …]\n\nÖffnet die Dateien in NoteMac++; fehlende Dateien legt der Befehl leer an. Installieren: Menü «NoteMac++» → «Befehl ‹notemac› fürs Terminal installieren …»."
             hinweis.beginSheetModal(for: window!)
-        case "HOMESWEETHOME", "PROJECTPAGE": oeffne("https://github.com/simon-baumhauer/griffel")
-        case "ONLINEDOCUMENT": oeffne("https://github.com/simon-baumhauer/griffel#readme")
-        case "FORUM": oeffne("https://github.com/simon-baumhauer/griffel/issues")
-        case "UPDATE_NPP": oeffne("https://github.com/simon-baumhauer/griffel/releases")
+        case "HOMESWEETHOME", "PROJECTPAGE": oeffne("https://github.com/simon-baumhauer/notemac")
+        case "ONLINEDOCUMENT": oeffne("https://github.com/simon-baumhauer/notemac#readme")
+        case "FORUM": oeffne("https://github.com/simon-baumhauer/notemac/issues")
+        case "UPDATE_NPP": oeffne("https://github.com/simon-baumhauer/notemac/releases")
         case "DEBUGINFO": zeigeDebugInfo()
         case "ABOUT": (NSApp.delegate as? AppDelegate)?.zeigeUeber(nil)
         default:
@@ -611,7 +611,7 @@ extension Hauptfenster: NSMenuItemValidation {
     private func zeigeDebugInfo() {
         let info = Bundle.main.infoDictionary ?? [:]
         let text = """
-            Griffel \(info["CFBundleShortVersionString"] as? String ?? "?") (\(info["CFBundleVersion"] as? String ?? "?"))
+            NoteMac++ \(info["CFBundleShortVersionString"] as? String ?? "?") (\(info["CFBundleVersion"] as? String ?? "?"))
             macOS \(ProcessInfo.processInfo.operatingSystemVersionString)
             Architektur: \(Werkzeuge.architektur)
             Farbschema: \(Einstellungen.schemaName(fuer: NSApp.effectiveAppearance))
@@ -708,8 +708,8 @@ enum Befehlsmenue {
     }
 
     private static func appMenue() -> NSMenuItem {
-        let kopf = NSMenuItem(title: "Griffel", action: nil, keyEquivalent: "")
-        let menue = NSMenu(title: "Griffel")
+        let kopf = NSMenuItem(title: "NoteMac++", action: nil, keyEquivalent: "")
+        let menue = NSMenu(title: "NoteMac++")
         func e(_ t: String, _ a: Selector, _ k: String = "", _ m: NSEvent.ModifierFlags = .command) -> NSMenuItem {
             let i = NSMenuItem(title: t, action: a, keyEquivalent: k)
             i.keyEquivalentModifierMask = m
@@ -719,14 +719,14 @@ enum Befehlsmenue {
         dienste.submenu = NSMenu(title: "Dienste")
         NSApp.servicesMenu = dienste.submenu
         for i in [
-            e("Über Griffel", #selector(AppDelegate.zeigeUeber(_:))), .separator(),
+            e("Über NoteMac++", #selector(AppDelegate.zeigeUeber(_:))), .separator(),
             e("Einstellungen …", #selector(AppDelegate.zeigeEinstellungen(_:)), ","),
-            e("Befehl «griffel» fürs Terminal installieren …", #selector(AppDelegate.installiereBefehl(_:))),
+            e("Befehl «notemac» fürs Terminal installieren …", #selector(AppDelegate.installiereBefehl(_:))),
             .separator(), dienste, .separator(),
-            e("Griffel ausblenden", #selector(NSApplication.hide(_:)), "h"),
+            e("NoteMac++ ausblenden", #selector(NSApplication.hide(_:)), "h"),
             e("Andere ausblenden", #selector(NSApplication.hideOtherApplications(_:)), "h", [.command, .option]),
             e("Alle einblenden", #selector(NSApplication.unhideAllApplications(_:))), .separator(),
-            e("Griffel beenden", #selector(NSApplication.terminate(_:)), "q"),
+            e("NoteMac++ beenden", #selector(NSApplication.terminate(_:)), "q"),
         ] { menue.addItem(i) }
         kopf.submenu = menue
         return kopf

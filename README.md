@@ -1,18 +1,19 @@
-<img src="Ressourcen/Griffel.png" width="128" alt="Icon von Griffel: ein cremeweisses Blatt mit umgeknickter gelber Ecke und fünf farbigen Codezeilen auf Anthrazit">
+<img src="Ressourcen/NoteMac.png" width="128" alt="Icon von NoteMac++: ein cremeweisses Blatt mit umgeknickter gelber Ecke und fünf farbigen Codezeilen auf Anthrazit">
 
-# Griffel
+# NoteMac++
 
 Ein Texteditor für den Mac nach dem Vorbild von Notepad++: derselbe Editor-Kern, dieselben Sprachen
 und Farbschemata, dieselben Menüs und Kürzel. Für Apple Silicon und Intel, ab macOS 13.
 
 ```bash
-brew install --cask simon-baumhauer/tap/griffel
+brew install --cask simon-baumhauer/tap/notemac
 ```
 
-Ohne Homebrew das DMG unter [Releases](https://github.com/simon-baumhauer/griffel/releases) laden;
-mehr unter [Installieren](#installieren). Bis Version 1.4 hiess Griffel «Kladde».
+Ohne Homebrew das DMG unter [Releases](https://github.com/simon-baumhauer/notemac/releases) laden;
+mehr unter [Installieren](#installieren). Bis Version 1.4 hiess NoteMac++ «Kladde», in 1.5 «Griffel».
+NoteMac++ ist ein unabhängiges Projekt und gehört nicht zu Notepad++.
 
-![Griffel mit einer Python-Datei, links die Dokumentenliste, rechts die Funktionsliste mit Klassen und Funktionen](docs/bilder/griffel.png)
+![NoteMac++ mit einer Python-Datei, links die Dokumentenliste, rechts die Funktionsliste mit Klassen und Funktionen](docs/bilder/notemac.png)
 
 Scintilla (Bearbeiten, Darstellung) und Lexilla (Syntaxfarben) sind aus dem Quellcode von Notepad++
 gebaut, und auch Sprachen, Farbschemata, Funktionslisten und Autovervollständigung kommen von dort. Die
@@ -20,14 +21,14 @@ Oberfläche ist in Swift mit AppKit nachgebaut und sieht aus wie die von Notepad
 mit den Original-Symbolen, die Tableiste, alle Menüs mit den Texten der deutschen Übersetzung, der
 Suchen-Dialog mit seinen vier Reitern, die Dialoge Gehe zu, Ausführen, Block-Editor, Makro mehrfach,
 Hashwert und Speichern im Windows-Stil (Aufbau aus den .rc-Dateien von Notepad++), die Seitenleisten mit
-Reitern unten und die Statusleiste. Was Griffel noch nicht kann, steht ausgegraut. Nur Fensterrahmen und
+Reitern unten und die Statusleiste. Was NoteMac++ noch nicht kann, steht ausgegraut. Nur Fensterrahmen und
 Menüleiste oben sind vom Mac.
 
-## Was Griffel kann
+## Was NoteMac++ kann
 
 **Dateien.** Tabs, «Zuletzt benutzt», Zeichensätze UTF-8, UTF-8 mit BOM, UTF-16 LE/BE und
 Windows-1252, Zeilenenden CRLF, LF und CR – erkannt, angezeigt und umstellbar wie im Menü
-«Kodierung» von Notepad++, samt «Neu öffnen als». Die Sitzung: Beim Beenden fragt Griffel nicht nach;
+«Kodierung» von Notepad++, samt «Neu öffnen als». Die Sitzung: Beim Beenden fragt NoteMac++ nicht nach;
 alle Tabs, auch nie gesicherte, und ungesicherte Änderungen sind beim nächsten Start wieder da, mit
 Einfügemarke, Lesezeichen und vorderem Tab. Alle 10 Sekunden eine Zwischensicherung. Tabs lassen sich
 ziehen, anheften und mit der mittleren Maustaste schliessen; Sitzungen auch als Datei sichern und laden.
@@ -40,7 +41,7 @@ Faltung, leuchtende Klammerpaare, Smart Highlighting (ein ausgewähltes Wort leu
 sichtbare Leerzeichen, Tabs und Zeilenenden, Einrückungshilfen, Zeilenumbruch, geteilte Ansicht.
 Benutzerdefinierte Sprachen (UDL) aus Notepad++ lassen sich importieren.
 
-![Griffel dunkel mit dem Farbschema DarkModeDefault, eine TypeScript-Datei, rechts die Miniaturansicht](docs/bilder/griffel-dunkel.png)
+![NoteMac++ dunkel mit dem Farbschema DarkModeDefault, eine TypeScript-Datei, rechts die Miniaturansicht](docs/bilder/notemac-dunkel.png)
 
 **Suchen.** Der Dialog «Suchen und ersetzen» von Notepad++ mit den Reitern Suchen, Ersetzen, In
 Dateien suchen und Hervorheben, den drei Modi (Normal, Erweitert mit `\n`, `\t`, `\x41` …,
@@ -74,9 +75,9 @@ Ordner als Arbeitsbereich. Vorschläge beim Tippen aus dem Text und den Wortlist
 geteilten Ansicht. Statusleiste wie in Notepad++ («Länge: … Zeilen: …», «Zei: … Spa: … Pos: …»,
 Zeilenende, Zeichensatz, INS/OVR; ein Klick öffnet das passende Menü). Hashwerte (MD5, SHA-1,
 SHA-256, SHA-512), «Ausführen …» mit den Variablen von Notepad++, Datei im Browser öffnen.
-Befehl `griffel` fürs Terminal (installieren im Menü «Griffel»).
+Befehl `notemac` fürs Terminal (installieren im Menü «NoteMac++»).
 
-**Optionen.** Der Dialog hat alle 23 Seiten von Notepad++ (⌘,). Was Griffel einstellen kann, wirkt
+**Optionen.** Der Dialog hat alle 23 Seiten von Notepad++ (⌘,). Was NoteMac++ einstellen kann, wirkt
 sofort: Tableiste, Symbolleiste, aktuelle Zeile, Cursor, Zeilenumbruch, Faltungsstil, senkrechte
 Kanten, Änderungshistorie, neue Dokumente, Einrückung, Hervorhebung, Autovervollständigung, Sitzung und
 mehr. Der Rest steht ausgegraut.
@@ -113,27 +114,28 @@ Die von Notepad++, mit ⌘ statt Ctrl und ⌥ statt Alt. Wo macOS ⌘ selbst bra
 Mit [Homebrew](https://brew.sh):
 
 ```bash
-brew install --cask simon-baumhauer/tap/griffel
+brew install --cask simon-baumhauer/tap/notemac
 ```
 
-Das legt Griffel unter **Programme** an und dazu den Befehl `griffel` fürs Terminal. Aktualisieren mit
-`brew upgrade --cask griffel`. Solange Griffel nicht bei Apple beglaubigt ist, entfernt der Cask die
-Quarantäne-Markierung der App; macOS öffnet sie dann ohne Rückfrage. Der Cask liegt in
-[simon-baumhauer/homebrew-tap](https://github.com/simon-baumhauer/homebrew-tap).
+Das legt NoteMac++ unter **Programme** an und dazu den Befehl `notemac` fürs Terminal. Aktualisieren mit
+`brew upgrade --cask notemac`. Solange die App nicht bei Apple beglaubigt ist, entfernt der Cask ihre
+Quarantäne-Markierung; macOS öffnet sie dann ohne Rückfrage. Der Cask liegt in
+[simon-baumhauer/homebrew-tap](https://github.com/simon-baumhauer/homebrew-tap). Die neueste Fassung,
+1.5.0, heisst noch Griffel; ab der nächsten heisst auch die App NoteMac++.
 
-Ohne Homebrew: Unter [Releases](https://github.com/simon-baumhauer/griffel/releases) das DMG laden,
-öffnen und **Griffel** in **Programme** ziehen. Griffel ist nicht bei Apple beglaubigt. Beim ersten
-Öffnen meldet macOS darum, die App könne nicht geprüft werden. Dann **Systemeinstellungen → Datenschutz
-& Sicherheit** öffnen und bei «Griffel» auf **Dennoch öffnen** klicken, oder im Terminal:
+Ohne Homebrew: Unter [Releases](https://github.com/simon-baumhauer/notemac/releases) das DMG laden,
+öffnen und die App in **Programme** ziehen. Die Fassung 1.5.0 ist nicht bei Apple beglaubigt. Beim
+ersten Öffnen meldet macOS darum, die App könne nicht geprüft werden. Dann **Systemeinstellungen →
+Datenschutz & Sicherheit** öffnen und bei «Griffel» auf **Dennoch öffnen** klicken, oder im Terminal:
 
 ```bash
 xattr -dr com.apple.quarantine /Applications/Griffel.app
 ```
 
-Wer Kladde schon hat: Griffel ist dieselbe App unter neuem Namen und übernimmt Einstellungen, Sitzung
-und benutzerdefinierte Sprachen. Kladde.app danach in den Papierkorb legen; beide tragen dieselbe
-Kennung, und macOS öffnet sonst manchmal die alte. Ein früher installierter Befehl `kladde` öffnet
-weiterhin Griffel.
+Wer Griffel oder Kladde schon hat: NoteMac++ ist dieselbe App unter neuem Namen und übernimmt
+Einstellungen, Sitzung und benutzerdefinierte Sprachen. Die alte App danach in den Papierkorb legen; alle
+tragen dieselbe Kennung, und macOS öffnet sonst manchmal die alte. Früher installierte Befehle `griffel`
+und `kladde` öffnen weiterhin NoteMac++.
 
 ## Bauen
 
@@ -144,14 +146,14 @@ nach `extern/notepad-plus-plus` und baut Scintilla und Lexilla (einige Minuten).
 ./scripts/app-bauen.sh --start
 ```
 
-Das Ergebnis ist `build/Griffel.app`. Mit `--universell` entsteht die App für Apple Silicon und Intel.
-Das DMG baut `./scripts/dmg-bauen.sh`. Mit `GRIFFEL_IDENTITAET` (ein Zertifikat «Developer ID
-Application») und `GRIFFEL_NOTAR_PROFIL=griffel` signiert es die App, lässt App und DMG von Apple
+Das Ergebnis ist `build/NoteMac++.app`. Mit `--universell` entsteht die App für Apple Silicon und Intel.
+Das DMG baut `./scripts/dmg-bauen.sh`. Mit `NOTEMAC_IDENTITAET` (ein Zertifikat «Developer ID
+Application») und `NOTEMAC_NOTAR_PROFIL=notemac` signiert es die App, lässt App und DMG von Apple
 beglaubigen und prüft das fertige DMG so, wie macOS es beim ersten Öffnen prüft. Mit `--beglaubigen`
-bricht es ab, wenn dafür etwas fehlt. Das Icon zeichnet `swift scripts/icon.swift Ressourcen/Griffel.icns`.
+bricht es ab, wenn dafür etwas fehlt. Das Icon zeichnet `swift scripts/icon.swift Ressourcen/NoteMac.icns`.
 
 Ein Tag `v…` baut das DMG auf GitHub, signiert und beglaubigt es und legt es an ein Release. Fehlen die
-Secrets dafür, bricht der Lauf ab: Ein DMG, das macOS mit «“Griffel” Not Opened» abweist, geht nicht
+Secrets dafür, bricht der Lauf ab: Ein DMG, das macOS mit «“NoteMac++” Not Opened» abweist, geht nicht
 mehr hinaus. Zertifikat und Schlüssel legt `./scripts/signatur-einrichten.sh` einmal als Secrets an;
 was vorher im Apple-Konto zu tun ist, steht oben im Skript. Von Hand gestartet («Run workflow»), läuft
 «Veröffentlichen» zur Probe durch, ohne ein Release anzulegen.
@@ -170,7 +172,7 @@ Die App kann sich selbst prüfen und schreibt einen Bericht samt Bildern ihrer F
 (`Sources/Kladde/Probe.swift`). Im Hintergrund starten, damit sie keine Tasten abfängt:
 
 ```bash
-open -g -n -W -a build/Griffel.app datei.txt --args -KladdeProbe /tmp/probe -KladdeProbeAktion nichts -KladdeSitzung /tmp/sitzung -KladdeUDL /tmp/udl
+open -g -n -W -a build/NoteMac++.app datei.txt --args -KladdeProbe /tmp/probe -KladdeProbeAktion nichts -KladdeSitzung /tmp/sitzung -KladdeUDL /tmp/udl
 ```
 
 Die Bilder in diesem README erneuert `./scripts/bilder.sh`: Eine Kopie der App mit eigener Kennung
@@ -188,10 +190,11 @@ General → Social preview) zeichnet `swift scripts/vorschau.swift`.
 | `Sources/ScintillaBruecke/` | Macht ScintillaView und Lexilla für Swift sichtbar |
 | `extern/mac/windows.h` | Ersatz für `<windows.h>`, damit der UDL-Lexer von Notepad++ auf dem Mac baut |
 | `scripts/` | Bau von Kern, App, Sprachdaten, Icon und DMG samt Signatur und Beglaubigung, die Secrets dafür, die Bilder fürs README und das Vorschaubild |
-| `Ressourcen/` | Info.plist, Icon, Befehl `griffel` |
+| `Ressourcen/` | Info.plist, Icon, Befehl `notemac` |
 
 Ordner, Module, die Kennung `io.github.simon-baumhauer.kladde` und die Startschalter `-Kladde…` tragen
-noch den alten Namen; umbenannt ist, was man in der App, beim Installieren und im Terminal sieht.
+noch den ersten Namen («Kladde»); umbenannt ist, was man in der App, beim Installieren und im Terminal
+sieht.
 
 Sprachen und Farbschemata entstehen beim Bauen aus `langs.model.xml`, `stylers.model.xml` und
 `installer/themes/` von Notepad++ (`scripts/sprachdaten.py`). Menüs, Kürzel, Tab-Menü, das Layout des
@@ -199,14 +202,14 @@ Suchen-Dialogs und die deutschen Texte liest `scripts/oberflaeche.py` aus `Notep
 `Parameters.cpp`, `FindReplaceDlg.rc` und `german.xml`; die Symbole kommen aus `src/icons/`. Wie
 Notepad++ jede Sprache in Scintilla einrichtet, steht in `Sources/Kladde/Sprachregeln.swift`.
 
-Die Sitzung liegt unter `~/Library/Application Support/Griffel/Sitzung/`, benutzerdefinierte
-Sprachen unter `~/Library/Application Support/Griffel/userDefineLangs/`; der Ordner `Kladde` von
-früher zieht beim ersten Start dorthin um. Die Dateien der Dokumente fasst die Sitzung nie an; erst
-«Sichern» schreibt sie.
+Die Sitzung liegt unter `~/Library/Application Support/NoteMac++/Sitzung/`, benutzerdefinierte
+Sprachen unter `~/Library/Application Support/NoteMac++/userDefineLangs/`; ein Ordner `Griffel` oder
+`Kladde` von früher zieht beim ersten Start dorthin um. Die Dateien der Dokumente fasst die Sitzung nie
+an; erst «Sichern» schreibt sie.
 
 ## Unterschiede zu Notepad++
 
-- **Regex.** Griffel sucht mit ICU (`NSRegularExpression`), Notepad++ mit Boost. Für das Übliche gleich;
+- **Regex.** NoteMac++ sucht mit ICU (`NSRegularExpression`), Notepad++ mit Boost. Für das Übliche gleich;
   `\K`, `\<`, `\>` und benannte Gruppen im Ersetzungstext (`$+{name}`) kennt die Suche nicht.
 - **Funktionslisten.** Ihre Boost-Ausdrücke übersetzt `Sources/KladdeKern/Funktionsliste.swift` für ICU
   (`\K`, `(?&NAME)`, `(?R)`, `(?(DEFINE)…)`, Kommentare im Modus `(?x)` …). Bedingungen `(?(…)…|…)` kann
@@ -214,9 +217,9 @@ früher zieht beim ersten Start dorthin um. Die Dateien der Dokumente fasst die 
 - **Benutzerdefinierte Sprachen** lassen sich importieren (Format ab 2.0), aber nicht in einem Dialog
   bearbeiten.
 - **Plugins** von Notepad++ laufen nicht: Sie sind Windows-Programme. JSON Viewer, XML Tools, MIME
-  Tools und Converter sind darum in Griffel nachgebaut (ohne ihren Code), weitere nicht.
+  Tools und Converter sind darum in NoteMac++ nachgebaut (ohne ihren Code), weitere nicht.
 - **Menütexte.** Wo Notepad++ Windows meint, steht der Mac: «Finder» statt «Explorer», «Terminal»
-  statt «Kommandozeile», «Griffel» statt «Notepad++».
+  statt «Kommandozeile», «NoteMac++» statt «Notepad++».
 - **Schrift.** Wie im Farbschema (meist Courier New, sonst Menlo), oder fest in den Einstellungen.
 - **Tastenkürzel** sind nicht im Programm umstellbar; macOS kann sie unter «Systemeinstellungen →
   Tastatur → Tastaturkurzbefehle → App-Kurzbefehle» ändern.
@@ -224,5 +227,6 @@ früher zieht beim ersten Start dorthin um. Die Dateien der Dokumente fasst die 
 ## Lizenz
 
 GPL v3, wie Notepad++ (siehe [`LICENSE`](LICENSE)). Was von wem stammt, steht in
-[`DRITTE.md`](DRITTE.md). Griffel übernimmt keinen Code von Notepad++, nur dessen Daten, Symbole und
-den Editor-Kern; «Notepad++» ist der Name des Vorbilds, nicht dieses Programms.
+[`DRITTE.md`](DRITTE.md). NoteMac++ übernimmt keinen Code von Notepad++, nur dessen Daten, Symbole und
+den Editor-Kern; «Notepad++» ist der Name des Vorbilds, nicht dieses Programms. NoteMac++ ist ein
+unabhängiges Projekt und steht in keiner Verbindung zu Notepad++ oder dessen Autor Don Ho.
